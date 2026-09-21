@@ -41,6 +41,11 @@
       .c.bl { bottom: 6px; left: 6px; border-right: 0; border-top: 0; border-bottom-left-radius: 4px; }
       .c.br { bottom: 6px; right: 6px; border-left: 0; border-top: 0; border-bottom-right-radius: 4px; }
       .readout { font: 700 32px/36px var(--font-mono); letter-spacing: -.02em; }
+      .spark { display: flex; align-items: flex-end; gap: 3px; height: 28px; margin-top: 10px; }
+      .spark i { flex: 1; background: var(--ink); opacity: .25; border-radius: 2px 2px 0 0; min-height: 2px; }
+      .spark i:last-child { opacity: 1; }
+      .spark i[title] { cursor: default; }
+      .hint { cursor: help; border-bottom: 1px dotted var(--ink-muted); }
       .sub { color: var(--ink-muted); font-size: 13px; }
 
       .dist { display: flex; height: 8px; border-radius: var(--radius-pill); overflow: hidden; background: var(--surface-sunken); margin-bottom: 8px; }
@@ -55,7 +60,10 @@
       [data-group="credibility"] .fill { background: var(--cat-credibility); } [data-group="synthetic"] .fill { background: var(--cat-synthetic); }
 
       .rank { display: grid; gap: 8px; }
-      .rank .row { display: grid; grid-template-columns: 1fr 44px; column-gap: 12px; row-gap: 4px; align-items: center; }
+      .rank .row { display: grid; grid-template-columns: 1fr 44px; column-gap: 12px; row-gap: 4px; align-items: center; cursor: pointer; padding: 2px 6px; margin: 0 -6px; border-radius: var(--radius-sm); }
+      .rank .row:hover, .src .row:hover { background: var(--surface-sunken); }
+      .rank .row.on, .src .row.on { outline: 1.5px solid var(--ink); }
+      .rank .row:focus-visible, .src .row:focus-visible, .post:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
       .rank .lbl { font: 500 13px/18px var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .rank .n { text-align: right; font: 700 12px/16px var(--font-mono); color: var(--ink-muted); }
       .meter { grid-column: 1 / -1; height: 6px; border-radius: var(--radius-sm); overflow: hidden;
@@ -63,7 +71,7 @@
       .fill { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--ink); transition: width .4s ease-out; }
 
       .src { display: grid; gap: 6px; }
-      .src .row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--hairline); }
+      .src .row { display: flex; align-items: center; gap: 10px; padding: 6px 6px; margin: 0 -6px; border-top: 1px solid var(--hairline); cursor: pointer; border-radius: var(--radius-sm); }
       .src .row:first-child { border-top: 0; }
       .src .who { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
       .src .who span { color: var(--ink-muted); font-weight: 400; }
@@ -79,6 +87,12 @@
       .sw input:checked + span { background: var(--action); border-color: var(--action); }
       .sw input:checked + span::after { transform: translateX(14px); background: var(--on-action); border-color: var(--action); }
       .lbl2 { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-muted); }
+      .search { height: 32px; padding: 0 12px 0 32px; border-radius: var(--radius-pill); border: 1px solid var(--hairline); background: var(--surface-sunken) no-repeat 11px center / 14px 14px; color: var(--ink); font: 500 13px/18px var(--font-sans); min-width: 200px;
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.5'/%3E%3Cpath d='M10.5 10.5L14 14'/%3E%3C/svg%3E"); }
+      .search:focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+      .chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px 0 10px; border-radius: var(--radius-pill); background: var(--action); color: var(--on-action); font: 600 12px/16px var(--font-sans); }
+      .chip button { border: 0; background: transparent; color: inherit; font: 400 16px/16px var(--font-sans); cursor: pointer; padding: 0 4px; }
+      .more { display: flex; justify-content: center; padding: 16px 0 4px; }
 
       .posts { display: grid; }
       .post { border-top: 1px solid var(--hairline); padding: 12px 0; display: grid; grid-template-columns: 56px 1fr auto; column-gap: 14px; row-gap: 6px; cursor: pointer; }
@@ -121,15 +135,15 @@
       </div>
 
       <section class="grid4">
-        <div class="card"><i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i><h2 class="micro">Analyzed</h2><div class="readout" id="nAll">0</div><div class="sub" id="nAllSub">posts</div></div>
+        <div class="card"><i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i><h2 class="micro">Analyzed</h2><div class="readout" id="nAll">0</div><div class="sub" id="nAllSub">posts</div><div class="spark" id="spark" title="Analyzed per day, last 7 days"></div></div>
         <div class="card"><h2 class="micro">With signals</h2><div class="readout" id="nSig">0</div><div class="sub" id="nSigSub">0% of feed</div></div>
-        <div class="card"><h2 class="micro">Heavy use</h2><div class="readout" id="nHigh">0</div><div class="sub">overall level high</div></div>
-        <div class="card"><h2 class="micro">AI slop</h2><div class="readout" id="nSlop">0</div><div class="sub">posts covered</div></div>
+        <div class="card"><h2 class="micro"><span class="hint" title="Posts whose overall use of persuasion techniques the analyzer rates 'high'. Not a judgment of the opinion.">Heavy use</span></h2><div class="readout" id="nHigh">0</div><div class="sub">overall level high</div></div>
+        <div class="card"><h2 class="micro"><span class="hint" title="Posts that read as mass-produced AI content (possible_ai_slop or synthetic_media ≥ 85%). Fedo covered them in the feed.">AI slop</span></h2><div class="readout" id="nSlop">0</div><div class="sub">posts covered</div></div>
       </section>
 
       <section class="grid2">
         <div class="card">
-          <h2 class="micro">Techniques</h2>
+          <h2 class="micro">Techniques <span class="sub" style="text-transform:none;letter-spacing:0;font-family:var(--font-sans);font-weight:400">· click to filter posts</span></h2>
           <div class="dist" id="dist"></div><div class="leg" id="legend"></div>
           <div class="rank" id="rank"></div>
         </div>
@@ -154,9 +168,12 @@
             <label><input type="radio" name="lv" value="low" />Low</label>
           </div>
           <label class="lbl2"><span class="sw"><input id="onlySlop" type="checkbox" /><span></span></span>Only AI slop</label>
+          <input class="search" id="q" type="search" placeholder="Search text or @handle" aria-label="Search" />
+          <span id="active"></span>
           <span class="micro" id="count" style="margin-left:auto"></span>
         </div>
         <div class="posts" id="posts"></div>
+        <div class="more" id="more"></div>
       </section>
 
       <div class="foot micro">Techniques, not opinions</div>

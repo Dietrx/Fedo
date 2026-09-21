@@ -8,7 +8,7 @@ const TICKS = `linear-gradient(var(--hairline),var(--hairline)) 25% 0/1px 100% n
   linear-gradient(var(--hairline),var(--hairline)) 50% 0/1px 100% no-repeat,
   linear-gradient(var(--hairline),var(--hairline)) 75% 0/1px 100% no-repeat, var(--surface-sunken)`;
 
-const groupCss = GROUPS.map(
+const groupCss = [...GROUPS, "other" as const].map(
   (g) => `
   .row[data-group="${g}"] .sw, .lab[data-group="${g}"] .k { background: var(--cat-${g}); }
   .lab[data-group="${g}"] .glyph { color: var(--cat-${g}-ink); }
