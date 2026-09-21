@@ -81,3 +81,37 @@ const CRITERIA: Partial<Record<SignalKey, { true: string; false: string }>> = {
 export const JEV_QUESTIONS: Record<string, NoulQuestion> = Object.fromEntries(
   JEV_KEYS.map((key) => [key, { type: "noul" as const, instructions: SIGNALS[key].question, criteria: CRITERIA[key] }]),
 );
+
+/**
+ * Context questions: not signals, but HOW the post is meant. Asked in the same request (whole post only).
+ * Measured on real satire/meme accounts: Jev reads everything literally ("like an insane animal" → dehumanizing),
+ * but it separates these three dimensions very reliably — including hate dressed up as "just joking".
+ */
+export const TONE_QUESTIONS = {
+  humor: {
+    type: "noul",
+    instructions: "Is this content a joke, satire, parody, absurdist humor, or a meme rather than a sincere statement?",
+    criteria: {
+      true: "Clearly comedic, absurd, exaggerated for laughs, a satirical headline, or a meme format.",
+      false: "A sincere statement, report, opinion, complaint, or advertisement, even if it is angry or sarcastic in tone.",
+    },
+  },
+  sarcasm: {
+    type: "noul",
+    instructions: "Does the author use sarcasm or irony, saying the opposite of what they mean, to criticise someone or something?",
+    criteria: {
+      true: "Mock praise, 'oh great', 'truly heroes', eye-roll emoji, or praise that is obviously meant as criticism.",
+      false: "The words are meant literally.",
+    },
+  },
+  targets_group: {
+    type: "noul",
+    instructions: "Does this content speak negatively about a real group of people (political, ethnic, religious, national, gender, or social group)?",
+    criteria: {
+      true: "A real-world group of people is attacked, mocked, or blamed.",
+      false: "No group is targeted, or the target is the author, a fictional character, an object, an animal, or a single celebrity.",
+    },
+  },
+} satisfies Record<string, NoulQuestion>;
+
+export type ToneKey = keyof typeof TONE_QUESTIONS;
