@@ -29,7 +29,7 @@ async function main() {
   if (!platform) return;
 
   let settings: Settings = { ...DEFAULT_SETTINGS, ...(await send({ type: "fedo/getSettings" })) };
-  let overlay = createOverlay({ minScore: settings.minScore, calmMode: settings.calmMode });
+  const overlay = createOverlay({ minScore: settings.minScore, calmMode: settings.calmMode });
   const items = new Map<string, Entry>();
 
   function show(entry: Entry, state: OverlayState) {
@@ -68,11 +68,12 @@ async function main() {
     const next: Settings = { ...DEFAULT_SETTINGS, ...(changes.settings.newValue as Partial<Settings>) };
     const wasEnabled = settings.enabled;
     settings = next;
-    overlay.clear();
-    overlay = createOverlay({ minScore: settings.minScore, calmMode: settings.calmMode });
-    if (!settings.enabled) return;
+    // The overlay listens to the same storage change itself (ui/prefs.ts): minScore / calmMode re-render live,
+    // enabled=false clears. Re-creating it here would throw away panels, live log and dismissed slop covers.
+    if (!settings.enabled || wasEnabled) return;
+    // switched back on: the overlay cleared itself on disable, so put every known post back on screen
     for (const entry of items.values()) {
-      if (!entry.state || (!wasEnabled && entry.state.status === "pending")) {
+      if (!entry.state || entry.state.status === "pending") {
         show(entry, { status: "pending" });
         analyze(entry);
       } else {

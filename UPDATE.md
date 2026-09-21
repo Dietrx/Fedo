@@ -10,6 +10,35 @@
 
 ---
 
+## 2026-09-21 · `main @ merge #16` · Glue + Integration · video-stt (#9) und feed-diet (#6) mit der neuen UI zusammengeführt
+
+**Was hat sich geändert:**
+- PR #16 löst die Konflikte von #9 (`video-stt`) und #6 (`feed-diet`) mit der Panel-UI auf `main` auf: `ai/`, `scraper/`, `contracts/`,
+  `extension/src`, `package.json` aus der Branch; `ui/` von `main` mit portierten Branch-Features (VideoProgress-Linie + Countdown
+  „full result in Ns", Coverage, Calm Mode, `Settings.mode`/`calmMode`); `manifest.json` = Vereinigung; `UPDATE.md` = beide Verläufe.
+- **Glue-Fix (`extension/src/content.ts`):** bei Settings-Änderungen wird das Overlay **nicht mehr neu erzeugt**. Die UI hört selbst auf
+  `chrome.storage.onChanged` (`ui/prefs.ts`) und rendert minScore/calmMode live bzw. räumt bei `enabled=false` auf. Der Glue rendert nur
+  noch beim Wieder-Einschalten alle bekannten Posts neu. Vorher gingen Panels, Live-Log und weggeklickte Slop-Cover bei jedem Popup-Klick verloren.
+- Verifiziert: `npm run check` grün (Eval 15/15). Live (Chromium + `dist/`, Mock-Analyzer, kein STT-Key): Panel oben rechts auf x.com und
+  tiktok.com ✅ · TikTok-Videos werden erkannt und Ergebnisse landen im Panel ✅ · Popup → „Open dashboard" ✅ · Panel-Button „Dashboard ↗" ✅ ·
+  Fortschrittslinie + Countdown im Playground („Simulate live video") ✅; live nur mit `STT_API_URL`, ohne Key geht die Phase sofort auf `unavailable` (gewollt).
+
+**Was musst du tun:**
+- `git pull --rebase origin main`
+- `npm install` (package.json hat sich geändert)
+- `npm run build` + in chrome://extensions auf ↻
+- Für Video-Countdown/Live-Transkript: `STT_API_URL` + `STT_API_KEY` in `.env` setzen (Vorlage `.env.example`), dann `npm run build`.
+
+**Wichtig zu wissen / offene Punkte:**
+- **Zwei Logs:** `background.ts` führt Exposure-Records (`fedo/getStats|getRecords|clearStats`), die UI führt ihr eigenes Log (`ui/log.ts` → Dashboard).
+  Für den Hackathon bleibt beides. Mittelfristig Dashboard auf `fedo/getRecords` umstellen; dafür bräuchte `ExposureRecord` zusätzlich `text`/`evidence`/`explanation` (Contract-Änderung, additiv).
+- **`host_permissions` bleibt `https://*/*`:** gefetcht wird nur `JEV_API_URL` (`ai/jev.ts`, `ai/llm.ts`) und `STT_API_URL` (`ai/stt.ts`), beide zur Buildzeit frei aus `.env`
+  (OpenRouter, OpenAI oder eigener Endpoint). Eine feste Liste würde bei jedem anderen Endpoint stumm an CORS scheitern. Wenn die Endpoints feststehen: auf diese Origins einengen (oder `scripts/build.mjs` die Origins in das Manifest schreiben lassen).
+- **Scraper:** ohne STT-Key nimmt `scraper/video.ts` trotzdem Tab-Audio auf und dekodiert es (Konsole: `audio chunk failed EncodingError: Unable to decode audio data` bei Folge-Chunks).
+  Kostet CPU, aber keine Funktion. Auf TikTok-Foryou (ausgeloggt) kommt der Autor als `@unknown` an.
+
+---
+
 ## 2026-09-21 · `main @ f68c853` · UI · `political_content` = Thema statt Signal (Abgleich mit AI), Lade-Effekte
 
 **Was hat sich geändert:**
