@@ -3,7 +3,7 @@
  * Reads the UI-owned log (ui/log.ts). No chrome context (opened as a plain file/URL) → demo data, so the page can be designed and reviewed.
  */
 import { SIGNALS, SIGNAL_KEYS, type IntensityLevel, type SignalKey } from "@contracts";
-import { clearLog, loadLog, onLogChange, type LogEntry } from "../log";
+import { clearLog, loadLog, onLogChange, safeHttpUrl, type LogEntry } from "../log";
 import { loadPrefs, onStorageChange, type UiPrefs } from "../prefs";
 import { GLYPH, GROUPS, groupOf, resolveTheme, themeCss, type Group } from "../theme";
 
@@ -100,7 +100,7 @@ function renderPosts(list: LogEntry[]) {
           <div class="who">${esc(e.displayName ?? e.handle)} <span>@${esc(e.handle)}</span></div>
           <div class="ex">${esc(e.text) || "<i>no text</i>"}</div>
           <div class="labs">${labs || `<span class="sub">No strong signals</span>`}</div>
-          <div class="det">${e.explanation ? `<p>${esc(e.explanation)}</p>` : ""}${rows}${e.url ? `<a class="open" href="${esc(e.url)}" target="_blank" rel="noopener">Open post ↗</a>` : ""}</div>
+          <div class="det">${e.explanation ? `<p>${esc(e.explanation)}</p>` : ""}${rows}${safeHttpUrl(e.url) ? `<a class="open" href="${esc(safeHttpUrl(e.url)!)}" target="_blank" rel="noopener noreferrer">Open post ↗</a>` : ""}</div>
         </div>
         ${lvl}
       </article>`;

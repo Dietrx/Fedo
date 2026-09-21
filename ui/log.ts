@@ -56,6 +56,12 @@ export function onLogChange(cb: (log: LogEntry[]) => void): () => void {
   return () => chrome.storage.onChanged.removeListener(h);
 }
 
+/** Only http(s) URLs may reach the dashboard page (an extension page): anything else from the host DOM is dropped. */
+export function safeHttpUrl(u: string | undefined | null): string | undefined {
+  if (!u) return undefined;
+  try { const p = new URL(u); return p.protocol === "https:" || p.protocol === "http:" ? p.href : undefined; } catch { return undefined; }
+}
+
 /** Build a log entry from what the overlay has: the id, the post's DOM element and the result. */
 export function entryFrom(itemId: string, anchor: HTMLElement, r: AnalysisResult, slop: boolean): LogEntry {
   const [platform, postId] = itemId.split(":") as [Platform, string];
@@ -66,8 +72,8 @@ export function entryFrom(itemId: string, anchor: HTMLElement, r: AnalysisResult
   const displayName = userBlock.includes("\n") ? userBlock.split("\n")[0]?.trim() : undefined;
   const body = q('[data-testid="tweetText"]') || q('[data-e2e="video-desc"]') || q('[data-e2e="browse-video-desc"]') || anchor.innerText || "";
   const url =
-    platform === "x" ? `https://x.com/i/status/${postId}` :
-    (anchor.querySelector<HTMLAnchorElement>('a[href*="/video/"]')?.href ?? undefined);
+    platform === "x" ? (/^\d+$/.test(postId) ? `https://x.com/i/status/${postId}` : undefined) :
+    safeHttpUrl(anchor.querySelector<HTMLAnchorElement>('a[href*="/video/"]')?.href);
   return {
     id: itemId, platform, handle, displayName, url,
     text: body.replace(/\s+/g, " ").slice(0, 160),
