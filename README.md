@@ -2,8 +2,10 @@
 
 > **Neu im Projekt?** Sag deinem Claude: *„Lies START_HERE.md, ich bin der <Scraper|AI|UI>-Dev.“*
 
-Chrome-Extension, die live im X- und TikTok-Feed Überzeugungs- und Manipulationstechniken markiert
-(Fear Framing, Us vs. Them, unbelegte Behauptungen, AI Slop, …). Sie bewertet **Techniken**, nicht Meinungen.
+Chrome-Extension, die live im Feed Überzeugungs- und Manipulationstechniken markiert
+(Fear Framing, Us vs. Them, unbelegte Behauptungen, AI Slop, …) und im Popup zeigt, was der eigene Feed
+einem serviert („Feed Diet“). Sie bewertet **Techniken**, nicht Meinungen. **X läuft, TikTok ist experimentell.**
+Demo-Ablauf und Fallbacks: `DEMO.md`.
 
 ```
  x.com / tiktok.com                     Background Service Worker
