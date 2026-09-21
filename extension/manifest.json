@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Fedo Shield",
+  "version": "0.1.0",
+  "description": "Live persuasion & manipulation signals on your social media feed.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://*/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "content_scripts": [
+    {
+      "matches": ["https://x.com/*", "https://twitter.com/*", "https://www.tiktok.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": { "default_popup": "popup.html", "default_title": "Fedo Shield" }
+}

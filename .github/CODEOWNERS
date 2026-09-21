@@ -1,0 +1,7 @@
+# Replace the placeholders with your GitHub usernames.
+# Changes to contracts/ need a review from everyone — it's the shared interface.
+/contracts/   @Dietrx
+/extension/   @Dietrx
+# /scraper/   @SCRAPER_DEV
+# /ai/        @AI_DEV
+# /ui/        @UI_DEV
