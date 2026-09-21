@@ -38,10 +38,14 @@ export const SEVERITY: Record<SignalKey, number> = {
 };
 
 const COUNT_FROM = 0.5;
-/** Calibrated on ai/dev/cases.ts for BOTH analyzers (local scores run lower than Jev's). Re-run the eval after changing. */
-const HIGH_FROM = 0.82;
-const MEDIUM_FROM = 0.55;
-const RANK_DECAY = [1, 0.6, 0.4, 0.3];
+/**
+ * Calibrated on ai/dev/cases.ts for BOTH analyzers (local scores run lower than Jev's). Re-run the eval after changing.
+ * 2026-09-21 sensitivity raise (was 0.82 / 0.55, decay 1·0.6·0.4·0.3): on 328 real posts high 1 % → 3 %, medium stays ~11 %,
+ * while the guard cases (neutral news, absurd jokes, weather, zoo) stay clean. Going lower starts flagging neutral reporting.
+ */
+const HIGH_FROM = 0.78;
+const MEDIUM_FROM = 0.48;
+const RANK_DECAY = [1, 0.65, 0.45, 0.3];
 const RANK_DECAY_REST = 0.2;
 
 export function assess(signals: Signal[]): Assessment {

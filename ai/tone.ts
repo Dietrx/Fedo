@@ -22,7 +22,7 @@ const HUMOR_FROM = 0.6;
 const SARCASM_FROM = 0.7;
 const GROUP_FROM = 0.5;
 /** At humor = 1 a playful post keeps this share of a sincerity-dependent score. */
-const PLAYFUL_KEEP = 0.35;
+const PLAYFUL_KEEP = 0.4;
 const HUMOR_MAX_SCORE = 0.8;
 
 /** These describe form or topic, not a sincere attempt to persuade → a joke doesn't change them. */

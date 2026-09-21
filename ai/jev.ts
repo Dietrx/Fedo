@@ -99,7 +99,7 @@ export function createJevAnalyzer(apiUrl: string, apiKey: string): Analyzer {
   };
 }
 
-const LOCATE_MARGIN = 0.25;
+const LOCATE_MARGIN = 0.35;
 const MAX_SENTENCES = 6;
 const MAX_MEMO_VIDEOS = 30;
 /** Timeline: a sentence must show the technique clearly, and at most this many techniques per sentence. */

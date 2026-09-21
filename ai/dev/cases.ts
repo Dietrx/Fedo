@@ -70,10 +70,11 @@ export const CASES: Case[] = [
     level: ["high"],
   },
   {
+    // Since the sensitivity raise (2026-09-21) an insult stacked with anger + political persuasion may reach "high" with Jev.
     item: post("@senator_x is a complete clown and a liar. Pathetic."),
     expect: ["personal_attack"],
     reject: ["dehumanizing_language", "commercial_persuasion"],
-    level: ["low", "medium"],
+    level: ["low", "medium", "high"],
   },
   {
     item: post("This changed my skin in 2 weeks 😍 Use my code GLOW20 for 20% off, link in bio! #ad"),
@@ -144,7 +145,7 @@ export const CASES: Case[] = [
     item: post("Oh great, another brilliant idea from our genius government 🙄 Truly heroes. I just LOVE paying more taxes so they can waste it."),
     expect: ["political_content", "political_persuasion"],
     reject: ["dehumanizing_language"],
-    level: ["low", "medium"],
+    level: ["medium", "high"], // sarcasm does not soften it: 4–5 techniques at once
     jevOnly: true,
   },
   {

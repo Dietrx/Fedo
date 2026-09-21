@@ -10,6 +10,22 @@
 
 ---
 
+## 2026-09-21 · `ai/more-sensitive` · AI · Bewertung empfindlicher: mehr `medium`/`high`
+
+**Was hat sich geändert** (nur `ai/`):
+- Stufen-Schwellen gesenkt (`high` ab 0,78 statt 0,82, `medium` ab 0,48 statt 0,55), weitere Techniken zählen stärker mit, Satz-Plausibilisierung
+  und Humor-Dämpfung etwas lockerer. Gemessen an 328 echten Posts: `high` 3 → 11, `medium` 34 → 36, `low` 106 → 93.
+- **Bewusst NICHT gelockert:** die Fehlalarm-Sperren (zu wenig Text, musterbasierte Signale brauchen lokale Bestätigung). Geprüft: Die Posts knapp unter
+  der Anzeigeschwelle sind fast nur neutrale Meldungen (NYT, Spiegel), Link-Hinweise, Hashtag-only-Posts und Witze. Eine lockerere Variante hat im Test sofort eine
+  neutrale Nachrichtenmeldung auf `medium` gesetzt und einen absurden Witz als „dehumanizing" markiert → verworfen.
+- Evals: 15/15 lokal, 20/20 Jev (zwei Erwartungen angepasst: Beleidigungs-Tweet und sarkastische Regierungskritik dürfen jetzt `high` sein).
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, ↻, Tab neu laden.
+- **Für die Demo, wenn mehr Chips sichtbar sein sollen:** im Popup den Regler „Sensitivity" nach rechts (zeigt dann schon ab 30–40 % statt ab 50 %). Das ändert nur die Anzeige, nicht die Gesamtstufe.
+
+---
+
 ## 2026-09-21 · `fix/video-finishing` · Scraper (Video) + Glue + AI · Videos bleiben nicht mehr bei „finishing…" hängen, Bild-Posts ohne Text werden abgewartet
 
 **Was hat sich geändert:**
