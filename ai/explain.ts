@@ -14,10 +14,14 @@ export function buildExplanation(signals: Signal[], isVideo = false): string | u
   if (!top.length) return undefined;
 
   const subject = isVideo ? "The spoken text and caption of this video show" : "The wording of this post shows";
+  // One sentence often carries several techniques → quote it once, not once per technique.
+  const quoted = new Set<string>();
   const parts = top.map((s) => {
     const raw = SIGNALS[s.key].label;
     const label = raw.charAt(0).toLowerCase() + raw.slice(1);
-    return s.evidence ? `${label} (“${s.evidence}”)` : label;
+    if (!s.evidence || quoted.has(s.evidence)) return label;
+    quoted.add(s.evidence);
+    return `${label} (“${s.evidence}”)`;
   });
   const more = drivers.length > top.length ? ` and ${drivers.length - top.length} more` : "";
   return `${subject} patterns of ${joinList(parts)}${more}. This describes techniques in the text, not whether the message is true or what the author intends.`;

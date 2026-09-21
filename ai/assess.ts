@@ -25,9 +25,10 @@ export const SEVERITY: Record<SignalKey, number> = {
   anger_framing: 0.65,
   personal_attack: 0.65,
   synthetic_media: 0.6,
-  factual_claim: 0.55,
   political_persuasion: 0.5,
   urgency_language: 0.5,
+  // Numbers without a source are everywhere (price tickers, sports) → alone this must stay "low".
+  factual_claim: 0.4,
   sensationalism: 0.4,
   possible_ai_slop: 0.35,
   engagement_bait: 0.3,
@@ -39,7 +40,7 @@ export const SEVERITY: Record<SignalKey, number> = {
 const COUNT_FROM = 0.5;
 /** Calibrated on ai/dev/cases.ts for BOTH analyzers (local scores run lower than Jev's). Re-run the eval after changing. */
 const HIGH_FROM = 0.82;
-const MEDIUM_FROM = 0.45;
+const MEDIUM_FROM = 0.55;
 const RANK_DECAY = [1, 0.6, 0.4, 0.3];
 const RANK_DECAY_REST = 0.2;
 

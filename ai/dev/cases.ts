@@ -84,4 +84,35 @@ export const CASES: Case[] = [
     reject: ["scapegoating", "dehumanizing_language"],
     level: ["none", "low", "medium"],
   },
+  // ── found on real feeds (fetch-live.ts): things the API analyzer got wrong at first ──
+  {
+    item: post("#depol #afd #merz", { hashtags: ["depol", "afd", "merz"] }),
+    expect: [],
+    reject: ["political_persuasion", "personal_attack", "us_vs_them"],
+    level: ["none"],
+  },
+  {
+    item: post("📊 Market report 21/09 🟢 AVAX: $11.36 (+11.7%) | Vol: $1.47B 🟢 ADA: $0.2447 (+10.9%) | Vol: $717M 🟢 DOGE: $0.0932 (+9.9%)"),
+    expect: [],
+    reject: ["fear_framing", "political_persuasion"],
+    level: ["none", "low"],
+  },
+  {
+    item: post("Breaking News: A police officer shot and injured a man in Austin, Texas, the latest violent episode amid the administration's push to increase deportations."),
+    expect: ["political_content"],
+    reject: ["scapegoating", "dehumanizing_language", "conspiracy_framing"],
+    level: ["none", "low"],
+  },
+  {
+    item: post("Humans strike again 😡"),
+    expect: [],
+    reject: ["scapegoating", "dehumanizing_language"],
+    level: ["none", "low"],
+  },
+  {
+    item: post("Weatherwatch: wildfires driven by global heating destroy UK bird habitats"),
+    expect: [],
+    reject: ["conspiracy_framing", "scapegoating"],
+    level: ["none", "low"],
+  },
 ];

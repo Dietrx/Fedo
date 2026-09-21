@@ -10,6 +10,23 @@
 
 ---
 
+## 2026-09-21 · `ai/real-feed-tuning` · AI · An 168 echten Posts getestet und nachgeschärft
+
+**Was hat sich geändert:**
+- Jev bewertet jetzt zusätzlich jeden Satz einzeln (parallel, keine Zusatz-Latenz): Der Satz mit dem höchsten Score wird das
+  `evidence`-Zitat. Treffer ohne Zitat: vorher ~85 %, jetzt ~10 %. Signale, die sich in keinem Satz wiederfinden, werden gedämpft.
+- Weniger Fehlalarme: Hashtag-only-Posts, Kursticker, neutrale Nachrichtenmeldungen. Verteilung auf echtem Feed:
+  61 % none, 27 % low, 11 % medium, 1 % high. Latenz p50 ~0,4 s.
+- `evidence` kann jetzt ein ganzer Satz sein (max. 90 Zeichen, mit „…“), nicht mehr nur 2–4 Wörter.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, ↻
+- **UI-Dev:** (1) `evidence` braucht Platz für ~90 Zeichen / Umbruch. (2) Bei stark aufgeladenen Posts kommen 5–8 Signale ≥ 50 %.
+  Empfehlung: die 3–4 stärksten als Chips, Rest hinter „+n“. Mehrere Signale können dasselbe Zitat haben → nur einmal anzeigen.
+  (3) `result.timeline` + `result.overall` kommen fertig aus der AI, müssen nicht aus Score-Sprüngen nachgebaut werden.
+
+---
+
 ## 2026-09-21 · `ai/live-video` · AI · Live-Video: gedrosselte Analyse + Timeline
 
 **Was hat sich geändert:**

@@ -38,7 +38,7 @@ export function scoreSignals(input: AnalysisInput): Signal[] {
         for (const m of seg.text.matchAll(cue.re)) {
           const factor = REPEAT_FACTORS[n++];
           if (factor === undefined) break;
-          hits.get(key)!.push({ contribution: cue.weight * seg.weight * factor, evidence: snippet(seg.text, m.index ?? 0, m[0].length) });
+          hits.get(key)!.push({ contribution: cue.weight * seg.weight * factor, evidence: snippet(seg.text, m.index ?? 0, m[0].length, key === "political_content" ? 0 : 2) });
         }
       }
     }
@@ -114,10 +114,10 @@ const round = (n: number) => Math.round(n * 100) / 100;
 
 const STOPWORDS = new Set("a an and are as at by for if in is of on or since so that the this to with you der die das und ist in zu von mit wenn".split(" "));
 
-/** The matched words plus up to two following words of the same clause → readable quote for the UI. */
-function snippet(text: string, index: number, length: number): string {
+/** The matched words plus up to `tailWords` following words of the same clause → readable quote for the UI. */
+function snippet(text: string, index: number, length: number, tailWords = 2): string {
   const rest = text.slice(index + length);
-  const tail = (rest.match(/^(?:[ \t]+[^\s.,;:!?…"“”()]+){0,2}/u)?.[0] ?? "").trim().split(/\s+/).filter(Boolean);
+  const tail = (rest.match(/^(?:[ \t]+[^\s.,;:!?…"“”()#@]+){0,2}/u)?.[0] ?? "").trim().split(/\s+/).filter(Boolean).slice(0, tailWords);
   while (tail.length && STOPWORDS.has(tail.at(-1)!.toLowerCase())) tail.pop();
   const out = [text.slice(index, index + length).trim(), ...tail].join(" ");
   return out.length > 80 ? out.slice(0, 77) + "…" : out;

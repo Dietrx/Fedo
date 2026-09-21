@@ -15,7 +15,7 @@
  *  - STT for videos (tab audio → streaming transcript) → produce `kind: "transcript"` inputs
  *  - vision/deepfake branch → fill `synthetic_media`, source: "combined"
  */
-import type { Analyzer, Signal, SignalKey } from "@contracts";
+import type { AnalysisInput, Analyzer, Signal, SignalKey } from "@contracts";
 import { overall } from "./assess";
 import { scoreSignals } from "./engine";
 import { buildExplanation } from "./explain";
@@ -34,17 +34,31 @@ export function createJevAnalyzer(apiUrl: string, apiKey: string): Analyzer {
     async analyze(input) {
       const t0 = Date.now();
       let scores: Partial<Record<SignalKey, number>>;
+      // Whole post and every sentence go out in parallel → sentence scores cost no extra latency.
+      const sentences = input.kind === "post" ? splitSentences(input.item.text) : [];
+      const perSentence = Promise.allSettled(sentences.map((text) => callJev(endpoint, apiKey, model, { post_text: text })));
       try {
         scores = await callJev(endpoint, apiKey, model, buildStateObject(input));
       } catch (e) {
         console.warn("[fedo:ai] Jev failed → local engine result:", e instanceof Error ? e.message : e);
         return analyzeLocally(input, t0);
       }
-      // Jev returns probabilities only → the quote that explains a score comes from the local engine.
+      const located = locate(sentences, await perSentence);
+
       const local = new Map(scoreSignals(input).map((l) => [l.key, l]));
+      const thin = wordCount(input) < MIN_WORDS;
       const signals: Signal[] = JEV_KEYS.map((key) => {
-        const score = round(fuse(key, clamp(scores[key] ?? 0), local.get(key)?.score ?? 0, Boolean(input.item.quotedText)));
-        return { key, score, evidence: score >= 0.3 ? local.get(key)?.evidence : undefined };
+        const loc = located.get(key);
+        let score = clamp(scores[key] ?? 0);
+        // A technique has to be locatable: if no single sentence shows it, the whole-post score is mostly
+        // "mood" spilling over from the other signals (measured on real feeds) → pull it down.
+        if (loc && sentences.length >= 2) score = Math.min(score, loc.score + LOCATE_MARGIN);
+        // Hashtag-only / two-word posts give the model nothing to judge → it needs local support there.
+        if (thin && key !== "political_content" && (local.get(key)?.score ?? 0) < 0.3) score *= 0.5;
+        score = round(fuse(key, score, local.get(key)?.score ?? 0, Boolean(input.item.quotedText)));
+        // Quote: the precise local phrase if there is one, else the sentence Jev itself rated highest.
+        const evidence = local.get(key)?.evidence ?? (loc && loc.score >= 0.5 ? loc.quote : undefined);
+        return { key, score, evidence: score >= 0.3 ? evidence : undefined };
       });
       return {
         itemId: input.item.id,
@@ -57,6 +71,43 @@ export function createJevAnalyzer(apiUrl: string, apiKey: string): Analyzer {
       };
     },
   };
+}
+
+const LOCATE_MARGIN = 0.25;
+const MIN_WORDS = 4;
+const MAX_SENTENCES = 6;
+const MAX_QUOTE = 90;
+
+/** Sentences worth scoring on their own: real words, not just links or hashtags. */
+function splitSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?…])\s+|\n+/u)
+    .map((t) => t.trim())
+    .filter((t) => t.replace(/https?:\/\/\S+|[#@][\p{L}\p{N}_.]+/gu, "").split(/\s+/).filter((w) => /\p{L}{2,}/u.test(w)).length >= 3)
+    .slice(0, MAX_SENTENCES);
+}
+
+/** Per signal: the sentence with the highest score (→ evidence quote + "is it locatable at all?"). */
+function locate(sentences: string[], results: PromiseSettledResult<Partial<Record<SignalKey, number>>>[]): Map<SignalKey, { score: number; quote: string }> {
+  const best = new Map<SignalKey, { score: number; quote: string }>();
+  // If any sentence call failed we can't tell "not locatable" from "not measured" → no locatability data at all.
+  if (!sentences.length || results.some((r) => r.status === "rejected")) return best;
+  results.forEach((r, i) => {
+    if (r.status !== "fulfilled") return;
+    for (const key of JEV_KEYS) {
+      const score = r.value[key] ?? 0;
+      if (score > (best.get(key)?.score ?? -1)) best.set(key, { score, quote: shorten(sentences[i]!) });
+    }
+  });
+  return best;
+}
+
+const shorten = (t: string) => (t.length > MAX_QUOTE ? t.slice(0, MAX_QUOTE - 1).trimEnd() + "…" : t);
+
+function wordCount(input: AnalysisInput): number {
+  const spoken = input.kind === "transcript" ? input.transcript.map((c) => c.text).join(" ") : "";
+  const text = [input.item.text, input.item.captions, spoken, input.item.quotedText].filter(Boolean).join(" ");
+  return text.replace(/https?:\/\/\S+|[#@][\p{L}\p{N}_.]+/gu, "").split(/\s+/).filter((w) => /\p{L}{2,}/u.test(w)).length;
 }
 
 /**

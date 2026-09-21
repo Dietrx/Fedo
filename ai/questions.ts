@@ -22,11 +22,11 @@ const CRITERIA: Partial<Record<SignalKey, { true: string; false: string }>> = {
   },
   political_persuasion: {
     true: "Pushes the audience toward a political side: calls to vote, support, oppose, or resist, or emotionally loaded framing of a political subject.",
-    false: "Not political, or reports on politics neutrally without pushing a position.",
+    false: "Not political, or news-style reporting that describes events or quotes people without the author taking a side, even when the events are violent or controversial.",
   },
   fear_framing: {
     true: "Presents a threat, danger, or looming disaster to move the audience (e.g. destruction, invasion, 'before it's too late', harm to your family).",
-    false: "No threat language, or danger is reported factually and calmly.",
+    false: "No threat language, or a news-style report of a real event (accident, disaster, conflict) without telling the audience to be afraid.",
   },
   anger_framing: {
     true: "Wording chosen to provoke outrage: betrayal, disgrace, 'how dare they', 'enough is enough'.",

@@ -40,7 +40,7 @@ export const LEXICON: Partial<Record<SignalKey, Cue[]>> = {
   political_content: [
     cue("government~|election~|parliament~|congress|senate|president~|minister~|chancellor|democra~|republican~|legislation|referendum", STRONG),
     cue("regierung~|wahl|wahlen|wahlkampf|partei~|bundestag|kanzler~|politik~|abgeordnete~|koalition|afd|cdu|csu|spd|fdp|grünen?", STRONG),
-    cue("politic~|policy|policies|immigra~|migra~|asyl~|refugee~|flüchtling~|left-wing|right-wing|border (?:crisis|control|policy)|vote|votes|voting|voters?", MEDIUM),
+    cue("politic~|policy|policies|administration|deport~|abschieb~|tariff~|sanction~|immigra~|migra~|asyl~|refugee~|flüchtling~|left-wing|right-wing|border (?:crisis|control|policy)|vote|votes|voting|voters?", MEDIUM),
     cue("our country|this country|unser land|the media|die medien|mainstream media|taxpayers?|steuerzahler", MEDIUM),
     cue("crime|tax|taxes|steuern|liberals?|conservatives?|protest~|party", WEAK),
   ],
