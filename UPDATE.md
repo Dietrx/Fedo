@@ -10,6 +10,33 @@
 
 ---
 
+## 2026-09-21 · `main @ e6fc253` · UI · Design-System, vier Themes, Slop-Cover, Live-Tracker, Dashboard-Popup
+
+**Was hat sich geändert:**
+- **Im Feed nur noch eine ruhige Zeile pro Post** (28 px, kein Kasten): `LIVE · bis zu 3 Labels mit Kategorie-Punkt · +N · Details ›`.
+  Darüber eine 2-px-Fortschrittslinie, die sich füllt, während die KI arbeitet. Klick auf die Zeile öffnet das Per-Post-Dashboard
+  (Erklärung, `overall`, Meter mit Evidence, bei Videos die `timeline` als Log mit Zeitstempeln).
+- **Farbe = Kategorie** (political violett · rhetoric orange · credibility amber · synthetic teal, aus `SIGNALS[key].group`),
+  **nie „schlecht"**. Rot gibt es nur für LIVE und den Pending-Punkt.
+- **Vier Themes:** light / dark (folgt automatisch dem Host) + je eine farbenblind-sichere Variante (Okabe-Ito + Formsymbole ◆ ▲ ● ■).
+- **AI-Slop-Cover:** `possible_ai_slop` oder `synthetic_media` ≥ 85 % → voll-breites Cover über dem Post, per × wegklickbar.
+- **Popup = Dashboard:** An/Aus, Readout (analysiert / mit Signalen / Verteilung nach Gruppe), Appearance (System · Light · Dark),
+  Colour-blind-Schalter, Slop-Cover-Schalter, Sensitivität, „Open x.com". Settings gelten **sofort**, kein Feed-Reload.
+- Neue Dateien in `ui/`: `theme.ts` (Tokens), `prefs.ts` (UI-eigene Prefs + Zähler in `chrome.storage.local` unter `fedo.ui.*`).
+- **Kein Contract, kein Glue geändert.** Design-System (Tokens, Previews, Guidelines): https://claude.ai/artifact/3yqsB8zBs3oKGnTpt4y11Y
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, in chrome://extensions auf ↻
+- **AI-Dev:** `evidence` pro Signal, `explanation` und `timeline` sind das, was das Dashboard und das Live-Log gut machen – bitte weiter befüllen.
+  `possible_ai_slop` ≥ 0.85 löst jetzt das Cover aus: bitte nur bei wirklich klaren Fällen so hoch scoren.
+- **Scraper-Dev:** der Anker (`article`) bekommt `position: relative`, wenn er `static` ist (für das Cover). `onItemRemoved` bitte rufen,
+  damit Overlay + Cover mit dem Post verschwinden.
+
+**Wichtig zu wissen:** `npm run dev:ui` hat jetzt Theme-Dropdown, Schwellwert-Slider, Live-Simulation und einen Slop-Testpost.
+Das Cover ist standardmäßig an (Popup → „Cover AI slop posts").
+
+---
+
 ## 2026-09-21 · `ai/real-feed-tuning` · AI · An 168 echten Posts getestet und nachgeschärft
 
 **Was hat sich geändert:**
