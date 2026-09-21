@@ -76,7 +76,8 @@ async function viaChat(url: string, key: string, model: string, chunk: AudioChun
   if (!res.ok) throw new Error(`STT ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   let text = (json.choices?.[0]?.message?.content ?? "").trim();
-  if (/^\[no speech\]$/i.test(text)) text = "";
+  // "[no speech]" as asked, but models also like "[music]", "(applause)", "♪ … ♪" → none of that is speech.
+  text = text.replace(/\[[^\]]{0,40}\]|\([^)]{0,40}\)|♪[^♪]*♪|[♪🎵🎶]/gu, " ").replace(/\s+/g, " ").trim();
   return { text, segments: spread(text, chunk) };
 }
 

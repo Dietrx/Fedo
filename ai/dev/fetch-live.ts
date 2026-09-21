@@ -7,8 +7,21 @@
 import { writeFileSync } from "node:fs";
 import type { FeedItem } from "@contracts";
 
-const BLUESKY = ["nytimes.com", "reuters.com", "washingtonpost.com", "theonion.com", "aoc.bsky.social", "meidastouch.com", "ronfilipkowski.bsky.social", "acyn.bsky.social", "georgetakei.bsky.social", "mcuban.bsky.social", "spiegel.de", "tagesschau.de"];
-const MASTODON_TAGS = ["politics", "uspol", "depol", "crypto", "food", "cats", "climate", "deals", "ai", "photography"];
+/** Source sets: `npx tsx ai/dev/fetch-live.ts <out.json> [news|humor]` */
+const SETS = {
+  news: {
+    bluesky: ["nytimes.com", "reuters.com", "washingtonpost.com", "theonion.com", "aoc.bsky.social", "meidastouch.com", "ronfilipkowski.bsky.social", "acyn.bsky.social", "georgetakei.bsky.social", "mcuban.bsky.social", "spiegel.de"],
+    mastodon: ["politics", "uspol", "depol", "crypto", "food", "cats", "climate", "deals", "ai", "photography"],
+  },
+  // irony, satire, memes, shitposts, sarcasm, ads, health claims, German politics
+  humor: {
+    bluesky: ["theonion.com", "dril.bsky.social", "clickhole.com", "reductress.bsky.social", "thehardtimes.net", "der-postillon.com", "newyorker.com", "pixelatedboat.bsky.social", "jamellebouie.net", "kenklippenstein.bsky.social"],
+    mastodon: ["memes", "meme", "shitpost", "satire", "sarcasm", "humor", "funny", "politik", "btw", "vaccines", "health", "sale", "giveaway", "conspiracy", "rant"],
+  },
+};
+const set = SETS[(process.argv[3] as keyof typeof SETS) ?? "news"] ?? SETS.news;
+const BLUESKY = set.bluesky;
+const MASTODON_TAGS = set.mastodon;
 const PER_SOURCE = 8;
 
 const hashtags = (t: string) => [...t.matchAll(/#([\p{L}\p{N}_]+)/gu)].map((m) => m[1]!);

@@ -1,5 +1,5 @@
 /**
- * Offline analyzer (mode "mock"): no API key, no network. Runs the local scoring engine
+ * Offline analyzer (config mode "mock", result source "local"): no API key, no network. Runs the local scoring engine
  * (engine.ts + lexicon.ts), so scraper + UI devs get realistic results from minute one
  * and the demo still works when Jev is unreachable.
  */
@@ -16,7 +16,7 @@ export function analyzeLocally(input: AnalysisInput, t0 = Date.now()): AnalysisR
     overall: overall(signals),
     explanation: buildExplanation(signals, input.kind === "transcript"),
     partial: isPartial(input),
-    source: "mock",
+    source: "local",
     latencyMs: Date.now() - t0,
   };
 }

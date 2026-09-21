@@ -10,11 +10,13 @@
  *   - calls that arrive meanwhile are coalesced: only the LATEST transcript is analyzed,
  *     and everyone who was waiting gets that same, newest result (→ results never go backwards)
  *   - an unchanged transcript is answered from memory
+ *   - sentences cut apart by the speech-to-text windows are stitched back together (transcript.ts)
  *   - every result carries the `timeline` (timestamped events, computed locally → free and instant)
  */
 import type { AnalysisInput, AnalysisResult, Analyzer } from "@contracts";
 import { isPartial } from "./mock";
-import { buildTimeline } from "./timeline";
+import { buildTimeline, mergeTimelines } from "./timeline";
+import { toSentences } from "./transcript";
 
 type TranscriptInput = Extract<AnalysisInput, { kind: "transcript" }>;
 
@@ -79,6 +81,8 @@ export function withLiveVideo(inner: Analyzer): Analyzer {
   return {
     async analyze(input) {
       if (input.kind !== "transcript") return inner.analyze(input);
+      // Audio windows cut sentences apart → stitch them before anything is scored or quoted.
+      input = { ...input, transcript: toSentences(input.transcript) };
       const state = stateFor(input.item.id);
       if (state.last?.text === textOf(input)) return decorate(state.last.result, input);
 
@@ -91,7 +95,8 @@ export function withLiveVideo(inner: Analyzer): Analyzer {
 }
 
 function decorate(result: AnalysisResult, input: TranscriptInput): AnalysisResult {
-  return { ...result, timeline: buildTimeline(input.transcript), partial: isPartial(input) };
+  return { ...result, timeline: mergeTimelines(result.timeline, buildTimeline(input.transcript)), partial: isPartial(input) };
 }
 
-const textOf = (input: TranscriptInput) => input.transcript.map((c) => c.text).join(" ");
+/** Identity of a transcript state: the words plus whether the last sentence is closed (closing it adds a timeline entry). */
+const textOf = (input: TranscriptInput) => input.transcript.map((c) => c.text).join(" ") + (input.transcript.at(-1)?.isFinal ? " ■" : "");
