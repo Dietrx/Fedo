@@ -80,6 +80,11 @@ export const FIXTURE_RESULTS: AnalysisResult[] = [
   {
     itemId: "tiktok:2001",
     overall: { level: "medium", score: 0.79 },
+    timeline: [
+      { t: 2, key: "conspiracy_framing", score: 0.9, evidence: "what the government is hiding" },
+      { t: 5, key: "conspiracy_framing", score: 0.82, evidence: "lying to you" },
+      { t: 7, key: "us_vs_them", score: 0.71, evidence: "time we fight back" },
+    ],
     source: "mock",
     latencyMs: 240,
     partial: true,
