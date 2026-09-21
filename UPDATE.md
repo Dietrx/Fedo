@@ -10,6 +10,27 @@
 
 ---
 
+## 2026-09-21 · `main @ f68c853` · UI · `political_content` = Thema statt Signal (Abgleich mit AI), Lade-Effekte
+
+**Was hat sich geändert:**
+- **Abgleich UI ↔ AI:** `ai/assess.ts` wertet `political_content` als *Thema* (SEVERITY 0, nicht in `overall`, Timeline, Erklärung).
+  Die UI zeigte es als Label und zählte den Post als „mit Signalen" (4 von 24 Eval-Posts). Jetzt: gedämpfter Tag „political topic",
+  zählt nirgends als Signal (Zeile, Panel oben rechts, Per-Post-Dashboard, Dashboard-Seite, Popup-Readouts). Liste der Themen-Keys: `TOPIC_KEYS` in `ui/theme.ts`.
+- Sonst passt alles: `overall`-Stufen, `timeline`, `partial`, `source`, `COUNT_FROM 0.5` = UI-Schwelle 0.5, jedes gelabelte Ergebnis hat `evidence`.
+  Slop-Cover (≥ 85 %) löste bei 1/24 Posts aus (Growth Guru, `possible_ai_slop` 96) – nicht überempfindlich.
+- **Lade-Effekte:** Skeleton-Pills + animierte Punkte während der Analyse, „Still analyzing · 4s" ab 3 s, „Taking longer than usual" ab 12 s,
+  kriechende Fortschrittslinie bei langsamer API, Crossfade im Panel beim Post-Wechsel, Shimmer-Skeletons in Dashboard + Popup, „Updated"-Puls im Dashboard.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, ↻.
+- **AI-Dev:** wenn weitere Keys zu „Thema statt Technik" werden (SEVERITY 0), bitte kurz sagen → `TOPIC_KEYS` in `ui/theme.ts` nachziehen.
+  Der Erklärungstext endet mit „…not whether the message is true…" – die UI zeigt darunter zusätzlich „Techniques, not opinions"; wenn das doppelt wirkt, lass ich die Fußnote weg, sag Bescheid.
+
+**Wichtig zu wissen:** Das UI-eigene Prüfskript (`npx tsx ui/dev/contract-coverage.ts`) darf `ai/` nicht importieren (Boundaries) – der Abgleich mit echten
+AI-Ergebnissen lief einmalig lokal; bei größeren AI-Änderungen bitte `npm run dev:ai` und im Playground gegenprüfen.
+
+---
+
 ## 2026-09-21 · `main @ 35d0149` · UI · Festes Panel oben rechts statt Zeile unter jedem Post
 
 **Was hat sich geändert:**
