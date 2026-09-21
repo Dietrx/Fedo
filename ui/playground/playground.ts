@@ -3,7 +3,7 @@
  *   npm run dev:ui  → http://localhost:8000  (rebuilds on save, just reload)
  * Theme dropdown = the four design-system themes; the host background flips with it like x.com's light/dark mode.
  */
-import { FIXTURE_ITEMS, FIXTURE_RESULTS, type AnalysisResult, type OverlayRenderer } from "@contracts";
+import { FIXTURE_ITEMS, FIXTURE_RESULTS, SIGNAL_KEYS, type AnalysisResult, type OverlayRenderer, type SignalKey } from "@contracts";
 import { createOverlay } from "../index";
 import type { ThemeId } from "../theme";
 import type { Layout } from "../prefs";
@@ -13,6 +13,16 @@ const feed = document.getElementById("feed")!;
 const SLOP_ITEM = { id: "x:9001", platform: "x" as const, author: { handle: "promo_bot_9000", displayName: "Promo", verified: true }, text: "🚀 Unlock 10x productivity with our revolutionary AI-powered solution! Limited time offer — transform your workflow today! #ad", hashtags: ["ad"], media: [], scrapedAt: 0 };
 const SLOP_RESULT: AnalysisResult = { itemId: "x:9001", source: "mock", latencyMs: 90, overall: { level: "medium", score: 0.6 }, explanation: "Generic promotional text with typical patterns of generated content.",
   signals: [{ key: "possible_ai_slop", score: 0.94, evidence: "Unlock 10x productivity" }, { key: "commercial_persuasion", score: 0.9 }, { key: "urgency_language", score: 0.7, evidence: "Limited time offer" }] };
+// The analyzers score EVERY technique (the local engine's floor is 2%); the contract fixtures only list the loud ones.
+// Fill the quiet ones in, so the panel's ranking looks like it does on a real feed. Playground-only.
+const QUIET: Record<string, Partial<Record<SignalKey, [score: number, evidence?: string]>>> = {
+  "x:1003": { sensationalism: [0.35, "game-changing tips"], urgency_language: [0.2], commercial_persuasion: [0.12] },
+};
+const full = (r: AnalysisResult): AnalysisResult => ({
+  ...r,
+  signals: [...r.signals, ...SIGNAL_KEYS.filter((k) => k !== "synthetic_media" && !r.signals.some((s) => s.key === k)).map((key) => ({ key, score: QUIET[r.itemId]?.[key]?.[0] ?? 0.02, evidence: QUIET[r.itemId]?.[key]?.[1] }))],
+});
+const RESULTS = [...FIXTURE_RESULTS, SLOP_RESULT].map(full);
 const themeSel = document.getElementById("theme") as HTMLSelectElement;
 const layoutSel = document.getElementById("layout") as HTMLSelectElement;
 const minSel = document.getElementById("min") as HTMLInputElement;
@@ -45,7 +55,7 @@ function replay() {
   last.clear();
   build();
   for (const [id, anchor] of anchors) {
-    const result = id === SLOP_RESULT.itemId ? SLOP_RESULT : FIXTURE_RESULTS.find((r) => r.itemId === id);
+    const result = RESULTS.find((r) => r.itemId === id);
     setTimeout(() => {
       if (result) last.set(id, result);
       overlay.render(id, anchor, result ? { status: "done", result } : { status: "error", message: "no fixture" });
@@ -55,7 +65,7 @@ function replay() {
 
 /** Simulates a video whose scores grow as the speaker talks; evidence quotes arrive one by one. */
 function simulateLive() {
-  const base = FIXTURE_RESULTS.find((r) => r.itemId === "tiktok:2001")!;
+  const base = RESULTS.find((r) => r.itemId === "tiktok:2001")!;
   const anchor = anchors.get(base.itemId)!;
   overlay.remove(base.itemId); // fresh tracker: clock and log start now
   overlay.render(base.itemId, anchor, { status: "pending" });

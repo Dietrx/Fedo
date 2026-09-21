@@ -4,7 +4,7 @@
  * Colour tells the CATEGORY of a technique, fill weight tells its STRENGTH. Red is only ever LIVE.
  */
 import type { SignalKey } from "@contracts";
-import { SIGNALS } from "@contracts";
+import { SIGNALS, SIGNAL_KEYS } from "@contracts";
 
 export type ThemeId = "light" | "dark" | "light-cb" | "dark-cb";
 export type ThemePref = "system" | "light" | "dark";
@@ -75,6 +75,14 @@ export const GLYPH: Record<AnyGroup, string> = { political: "◆", rhetoric: "�
  */
 export const TOPIC_KEYS: ReadonlySet<SignalKey> = new Set<SignalKey>(["political_content"]);
 export const isTopic = (key: SignalKey) => TOPIC_KEYS.has(key);
+
+const KEY_ORDER = new Map<SignalKey, number>(SIGNAL_KEYS.map((k, i) => [k, i]));
+/**
+ * All techniques of a result, strongest first (topics are not techniques → left out).
+ * Ties keep the contract's key order: a clean post has every score at the floor, and the rows must not reshuffle on re-render.
+ */
+export const rankSignals = <T extends { key: SignalKey; score: number }>(signals: readonly T[]): T[] =>
+  signals.filter((s) => !isTopic(s.key)).sort((a, b) => b.score - a.score || (KEY_ORDER.get(a.key) ?? 99) - (KEY_ORDER.get(b.key) ?? 99));
 
 const KNOWN = new Set<string>(["political", "rhetoric", "credibility", "synthetic"]);
 /** Group of a signal for colouring. An unknown group (new in contracts) maps to "other" = neutral ink. */

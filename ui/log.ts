@@ -5,6 +5,7 @@
  * best-effort from the anchor for display; a FeedItem passed to render() would make this exact (proposal in UPDATE.md).
  */
 import type { AnalysisResult, IntensityLevel, Platform, SignalKey } from "@contracts";
+import { isTopic, rankSignals } from "./theme";
 
 export interface LogEntry {
   id: string;
@@ -17,7 +18,7 @@ export interface LogEntry {
   /** when it was analyzed, ms since epoch */
   ts: number;
   overall?: { level: IntensityLevel; score: number };
-  /** signals ≥ 0.3, highest first, at most 6 */
+  /** topics ≥ 0.5, then the ranked techniques: always the top five (however low, like the card shows them), then anything else ≥ 0.3. At most 6. */
   signals: { key: SignalKey; score: number; evidence?: string }[];
   explanation?: string;
   slop: boolean;
@@ -85,7 +86,7 @@ export function entryFrom(itemId: string, anchor: HTMLElement, r: AnalysisResult
     text: body.replace(/\s+/g, " ").slice(0, 160),
     ts: Date.now(),
     overall: r.overall,
-    signals: r.signals.filter((s) => s.score >= 0.3).sort((a, b) => b.score - a.score).slice(0, 6).map(({ key, score, evidence }) => ({ key, score, evidence })),
+    signals: [...r.signals.filter((s) => isTopic(s.key) && s.score >= 0.5), ...rankSignals(r.signals).filter((s, i) => i < 5 || s.score >= 0.3)].slice(0, 6).map(({ key, score, evidence }) => ({ key, score, evidence })),
     explanation: r.explanation,
     slop,
   };
