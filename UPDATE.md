@@ -10,6 +10,32 @@
 
 ---
 
+## 2026-09-21 · `ui/card-top5-apple` · UI · Karte oben rechts standardmäßig offen, Top-5-Balken auch bei sauberen Posts, ruhigerer Look; Dashboard zieht mit
+
+**Was hat sich geändert** (nur `ui/`, direkt auf `main` gepusht – Entscheidung Franz, Zeitdruck vor der Demo; **Noah, bitte einmal drüberschauen**):
+- **Karte oben rechts ist von allein aufgeklappt.** Zuklappen (Pfeil oben rechts) gilt für alle folgenden Posts bis zum Neuladen der Seite (wird nicht gespeichert).
+- **Immer ein Ranking der fünf stärksten Techniken als Balken** – auch bei „No strong signals", dann klein und grau (z. B. 2 %). „Show all 14" zeigt den Rest.
+  Unter der Schwelle = grau und **zählt weiterhin nirgends** (`visible()`, `bumpStats`, Log-Zählung, Strip-Labels, Slop-Cover unverändert; Dashboard-Kennzahlen identisch).
+- **„Not enough text to assess" zeigt bewusst KEINE Balken** (Contract: bei `coverage: "insufficient"` nie sauber wirken).
+- **Antippen einer Technik** klappt auf, was sie bedeutet (`SIGNALS[key].description`) und die Forschungszeile (`RESEARCH` aus `contracts/signals.ts`, bisher ungenutzt).
+- **Look:** Gesamtstufe als Titel + ein neutraler Gesamt-Balken + ein Satz („Persuasion techniques · 2 of 14 above 50%"), Serifenlose für Text, Mono nur für Zahlen,
+  ein Zuklapp-Knopf statt zwei, `local · 4 ms` klein im Fuß, Karte 340 px. Tags (Topic, text only, Countdown, „Dimmed · Show") stehen neben dem Autor.
+  Video-Fortschritt, ETA, Calm mode, Live-Timeline, Slop-Cover, vier Themes: funktional unverändert.
+- **`ui/log.ts`:** speichert je Post die gerankten Top 5 unabhängig vom Score (vorher: nur ≥ 30 %) → die Dashboard-Seite zeigt dieselben Balken. Alte Einträge bleiben, wie sie sind.
+- **Dashboard-Seite:** gleiche Zeilen-Optik (Rang, grau unter 50 %), kein Punktraster-Hintergrund, keine Eck-Klammern, weniger Großbuchstaben-Mono.
+- **Neu: erste UI-Tests** `ui/test/pin.test.ts` (10 Tests, ohne DOM): `node --import tsx --test ui/test/*.test.ts`.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, ↻ in chrome://extensions.
+- **Noah:** falls du parallel an `ui/index.ts` sitzt – `renderView()`/`panel()`/`row()` sind umgebaut (neuer Parameter `ViewCtx`), die Klick-Verdrahtung liegt jetzt in `wire()`.
+  Dein Glue-Fix `94c294e` (Overlay bei Settings-Änderung nicht neu erzeugen) ist noch nicht auf `main`; ohne ihn geht der „zugeklappt"-Zustand bei jeder Popup-Änderung verloren.
+- **AI-Dev:** nichts. Idee für später (rein additiv): `overall.drivers` mit den Anteilen je Technik, dann kann die Karte die Gesamtzahl exakt vorrechnen.
+
+**Wichtig zu wissen:** Auf einem völlig sauberen Post stehen alle Werte auf dem Mindestwert → die fünf gezeigten Zeilen sind dann immer dieselben ersten fünf (feste Reihenfolge, damit nichts springt).
+Kontraste aller neuen Texte in allen vier Themes gemessen (≥ 4,5:1), Klickflächen ≥ 24 px; Hover-Farben nur aus den Tokens gerechnet, nicht mit echtem Zeiger gemessen.
+
+---
+
 ## 2026-09-21 · `ai/faster-media` · AI + Scraper (X) · Bilder werden jetzt zuverlässig erkannt, Bild + Speech-to-Text ~2,5× schneller
 
 **Was hat sich geändert:**
