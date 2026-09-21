@@ -31,15 +31,19 @@ export interface Vision {
   look(item: FeedItem): Promise<VisionResult | undefined>;
 }
 
-const DEFAULT_MODEL = "google/gemini-2.5-flash";
-const TIMEOUT_MS = 12_000;
+/**
+ * Measured on the real URL path (4 runs each): gemini-2.5-flash 2.4–4.2 s · gemini-3.1-flash-lite 0.9–1.9 s,
+ * same OCR result and the same synthetic verdicts on the test images → the lite model is the default.
+ */
+const DEFAULT_MODEL = "google/gemini-3.1-flash-lite";
+const TIMEOUT_MS = 8_000;
 const MAX_IMAGES = 2;
 /** A language model is not a forensic tool → it never gets to claim near-certainty. */
 const SYNTHETIC_CAP = 0.9;
 const MAX_CACHE = 300;
 
 const PROMPT = `You look at the image(s) attached to ONE social media post. Answer with ONE JSON object and nothing else:
-{"text":"<all text that is visibly written IN the image(s), verbatim, original language, reading order; empty string if none>","description":"<one neutral sentence: what the image shows, no interpretation of intent>","synthetic":<0.0-1.0>,"synthetic_reason":"<max 12 words, the visible sign; empty if synthetic < 0.5>"}
+{"text":"<all text that is visibly written IN the image(s), verbatim, original language, reading order; empty string if none>","description":"<max 10 words: what the image shows, no interpretation of intent>","synthetic":<0.0-1.0>,"synthetic_reason":"<max 12 words, the visible sign; empty if synthetic < 0.5>"}
 
 Rules:
 - "text": transcribe only what is written in the image (captions, headlines, meme text, signs, chat screenshots). Ignore watermarks, usernames and UI chrome like "Follow" or view counts. Never add words.
@@ -53,10 +57,10 @@ interface ModelAnswer {
   synthetic_reason?: string;
 }
 
-/** Vision needs a multimodal chat endpoint. Its own VISION_* config wins; else the STT chat model (Gemini) is reused. */
+/** Vision needs a multimodal chat endpoint. Its own VISION_* config wins; else the STT chat ENDPOINT + key are reused (the model stays vision's own choice). */
 export function createVision(config: AnalyzerConfig): Vision | undefined {
   const own = config.visionApiUrl && config.visionApiKey ? { url: config.visionApiUrl, key: config.visionApiKey, model: config.visionModel } : undefined;
-  const viaStt = config.sttApiUrl && config.sttApiKey && /\/chat\/completions\/?$/.test(config.sttApiUrl) ? { url: config.sttApiUrl, key: config.sttApiKey, model: config.sttModel } : undefined;
+  const viaStt = config.sttApiUrl && config.sttApiKey && /\/chat\/completions\/?$/.test(config.sttApiUrl) ? { url: config.sttApiUrl, key: config.sttApiKey, model: config.visionModel } : undefined;
   const api = own ?? viaStt;
   if (!api) return undefined;
   const model = api.model || DEFAULT_MODEL;
@@ -69,11 +73,14 @@ export function createVision(config: AnalyzerConfig): Vision | undefined {
       const id = urls.join(" ");
       let pending = cache.get(id);
       if (!pending) {
-        pending = ask(api.url, api.key, model, urls).catch((e) => {
-          console.warn("[fedo:ai] vision failed → text only:", e instanceof Error ? e.message : e);
-          cache.delete(id); // a failure is not an answer → try again next time
-          return undefined;
-        });
+        // One quick retry: most failures are a provider hiccup or an image fetch that was a moment too early.
+        pending = ask(api.url, api.key, model, urls)
+          .catch(() => ask(api.url, api.key, model, urls))
+          .catch((e) => {
+            console.warn("[fedo:ai] vision failed → text only:", e instanceof Error ? e.message : e);
+            cache.delete(id); // a failure is not an answer → try again next time
+            return undefined;
+          });
         cache.set(id, pending);
         if (cache.size > MAX_CACHE) cache.delete(cache.keys().next().value!);
       }
@@ -87,7 +94,19 @@ export function imageUrls(item: FeedItem): string[] {
   return item.media
     .map((m) => (m.type === "image" ? m.url : m.posterUrl))
     .filter((u): u is string => Boolean(u) && /^(https:\/\/|data:image\/)/.test(u!))
+    .map(smallEnough)
     .slice(0, MAX_IMAGES);
+}
+
+/**
+ * X serves every photo in several sizes. "small" (680 px) is plenty to read meme text, downloads faster for
+ * the provider and costs fewer image tokens than the 1200–4096 px original the GraphQL record points to.
+ */
+function smallEnough(url: string): string {
+  const m = url.match(/^https:\/\/pbs\.twimg\.com\/media\/([\w-]+)(?:\.(jpg|jpeg|png|webp))?(?:\?(.*))?$/i);
+  if (!m) return url;
+  const format = m[2]?.toLowerCase() ?? new URLSearchParams(m[3] ?? "").get("format") ?? "jpg";
+  return `https://pbs.twimg.com/media/${m[1]}?format=${format === "jpeg" ? "jpg" : format}&name=small`;
 }
 
 async function ask(url: string, key: string, model: string, images: string[]): Promise<VisionResult> {
@@ -97,7 +116,7 @@ async function ask(url: string, key: string, model: string, images: string[]): P
     body: JSON.stringify({
       model,
       temperature: 0,
-      max_tokens: 500,
+      max_tokens: 400,
       reasoning: { enabled: false }, // transcribing a picture needs no thinking budget → lower, steadier latency
       messages: [{ role: "user", content: [{ type: "text", text: PROMPT }, ...images.map((u) => ({ type: "image_url", image_url: { url: u } }))] }],
     }),

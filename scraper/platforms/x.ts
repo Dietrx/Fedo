@@ -16,6 +16,11 @@ import { debug, extractHashtags, observeFeed } from "../observe";
 import { listenBridge, mainWorldPresent } from "../bridge";
 import { isTweetResult, mapTweetResult, type MappedTweet } from "./x-graphql";
 
+/** Containers X renders immediately, before the actual <img>/<video> exists. */
+const MEDIA_HINT = '[data-testid="tweetPhoto"], [data-testid="videoPlayer"], [data-testid="videoComponent"]';
+const MEDIA_RETRY_MS = 250;
+const MEDIA_MAX_WAIT_MS = 2_500;
+
 const SEL = {
   post: 'article[data-testid="tweet"]',
   text: '[data-testid="tweetText"]',
@@ -43,11 +48,26 @@ export function createXScraper(): Scraper {
       });
 
       const stopFeed = observeFeed(SEL.post, (article) => {
-        const item = extractPost(article, records);
-        if (!item) return;
-        article.dataset.fedoId = item.id;
-        debug("NEW POST", item);
-        sink.onItem(item, article);
+        // X inserts <img>/<video> only once the media has loaded, and the GraphQL replay for the first screenful
+        // arrives a moment AFTER the first scan. Reading the article right away therefore often yields `media: []`
+        // (measured symptom: pictures analyzed only sometimes). If the post visibly HAS media but we know neither
+        // the record nor the element yet, look again for a short while before reporting it.
+        const started = Date.now();
+        const attempt = () => {
+          if (!article.isConnected) return;
+          const item = extractPost(article, records);
+          if (!item) return;
+          const known = records.has(item.id.slice(2));
+          const mediaPending = !known && !item.media.length && !!article.querySelector(MEDIA_HINT);
+          if (mediaPending && Date.now() - started < MEDIA_MAX_WAIT_MS) {
+            setTimeout(attempt, MEDIA_RETRY_MS);
+            return;
+          }
+          article.dataset.fedoId = item.id;
+          debug("NEW POST", item);
+          sink.onItem(item, article);
+        };
+        attempt();
       });
 
       return () => {
