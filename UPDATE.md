@@ -24,6 +24,33 @@
 - **UI-Dev:** (1) `evidence` braucht Platz für ~90 Zeichen / Umbruch. (2) Bei stark aufgeladenen Posts kommen 5–8 Signale ≥ 50 %.
   Empfehlung: die 3–4 stärksten als Chips, Rest hinter „+n“. Mehrere Signale können dasselbe Zitat haben → nur einmal anzeigen.
   (3) `result.timeline` + `result.overall` kommen fertig aus der AI, müssen nicht aus Score-Sprüngen nachgebaut werden.
+## 2026-09-21 · Branch `feed-diet` · Contracts + Glue + UI · Feed-Diet-Dashboard, Live-Settings, Coverage
+
+**Was hat sich geändert:**
+- `contracts/` (alles optional, nichts Breaking): `Settings.mode` („local“/„cloud“) + `Settings.calmMode`,
+  `AnalysisResult.coverage` („full“/„text_only“/„insufficient“), `source: "local"` zusätzlich zu „mock“,
+  `FeedItem.kind` („post“/„draft“ für den Compose-Spiegel), `ExposureRecord`/`FeedStats`/`StatsWindow`,
+  Messages `fedo/getStats`, `fedo/getRecords`, `fedo/clearStats`, `RESEARCH` + `SIGNAL_GROUPS` in `signals.ts`.
+- `extension/src/background.ts`: schreibt pro analysiertem Post einen Datensatz nach `chrome.storage.local`
+  (dedupliziert per Item-ID, Drafts nie), aggregiert Statistiken pro Zeitfenster, setzt den Badge-Zähler
+  (hohe Intensität in dieser Sitzung), wählt den Analyzer nach `Settings.mode`, setzt `coverage` als Fallback.
+- `extension/src/content.ts`: Popup-Änderungen gelten sofort (kein Tab-Reload), Sequenz-Guard für
+  Transcript-Antworten (alte Antworten überschreiben keine neuen mehr).
+- `ui/popup/`: das Dashboard — Zeitfenster, Kennzahlen, Donut nach Stufe, Top-Techniken, Top-Quellen,
+  Presets statt Slider, Calm Mode, Lokal/Cloud, Export, Reset.
+- `ui/index.ts`: Gesamtstufen-Badge, Coverage-Zustände (kein grüner Haken ohne Text), Calm Mode dimmt
+  (nie verstecken, „Show post“), Research-Zeile im Why-Panel.
+- `scripts/build.mjs`: `host_permissions` nur noch die Jev-Origin (statt `https://*/*`).
+- `npm run check` läuft jetzt auch `npm run eval` (10 Regressionsfälle). `DEMO.md` neu.
+
+**Was musst du tun:**
+- `git pull --rebase origin main` (nachdem `feed-diet` gemerged ist), `npm run build`, in chrome://extensions auf ↻.
+- **AI-Dev:** `source: "local"` statt „mock“ setzen und `coverage` in `analyzeLocally` befüllen (dann fliegt
+  der Fallback im Glue raus). `kind: "draft"` bei der Analyse nicht anders behandeln, das Glue loggt Drafts nur nicht.
+- **Scraper-Dev:** Compose-Box (`[data-testid="tweetTextarea_0"]`) als `FeedItem` mit `kind: "draft"` liefern, wenn Zeit ist.
+
+**Wichtig zu wissen:** Verifiziert in Chromium mit geladener Extension: 10 Posts → 10 Datensätze, doppelte Analyse
+zählt einmal, Badge = Anzahl „high“. Alte Ergebnisse ohne `overall` bekommen eine abgeleitete Stufe.
 
 ---
 
@@ -113,36 +140,6 @@ Die simulierte Latenz ist weg → `pending` ist im echten Feed nur noch sehr kur
 
 **Wichtig zu wissen:** Kein Breaking Change (Feld ist optional). Wording: Die Stufe beschreibt, wie stark
 Überzeugungs-TECHNIKEN eingesetzt werden, nicht ob etwas wahr oder „gefährlich“ ist. `political_content` allein ergibt immer `none`.
-
----
-
-## 2026-09-21 · Branch `feed-diet` · Contracts + Glue + UI · Feed-Diet-Dashboard, Live-Settings, Coverage
-
-**Was hat sich geändert:**
-- `contracts/` (alles optional, nichts Breaking): `Settings.mode` („local“/„cloud“) + `Settings.calmMode`,
-  `AnalysisResult.coverage` („full“/„text_only“/„insufficient“), `source: "local"` zusätzlich zu „mock“,
-  `FeedItem.kind` („post“/„draft“ für den Compose-Spiegel), `ExposureRecord`/`FeedStats`/`StatsWindow`,
-  Messages `fedo/getStats`, `fedo/getRecords`, `fedo/clearStats`, `RESEARCH` + `SIGNAL_GROUPS` in `signals.ts`.
-- `extension/src/background.ts`: schreibt pro analysiertem Post einen Datensatz nach `chrome.storage.local`
-  (dedupliziert per Item-ID, Drafts nie), aggregiert Statistiken pro Zeitfenster, setzt den Badge-Zähler
-  (hohe Intensität in dieser Sitzung), wählt den Analyzer nach `Settings.mode`, setzt `coverage` als Fallback.
-- `extension/src/content.ts`: Popup-Änderungen gelten sofort (kein Tab-Reload), Sequenz-Guard für
-  Transcript-Antworten (alte Antworten überschreiben keine neuen mehr).
-- `ui/popup/`: das Dashboard — Zeitfenster, Kennzahlen, Donut nach Stufe, Top-Techniken, Top-Quellen,
-  Presets statt Slider, Calm Mode, Lokal/Cloud, Export, Reset.
-- `ui/index.ts`: Gesamtstufen-Badge, Coverage-Zustände (kein grüner Haken ohne Text), Calm Mode dimmt
-  (nie verstecken, „Show post“), Research-Zeile im Why-Panel.
-- `scripts/build.mjs`: `host_permissions` nur noch die Jev-Origin (statt `https://*/*`).
-- `npm run check` läuft jetzt auch `npm run eval` (10 Regressionsfälle). `DEMO.md` neu.
-
-**Was musst du tun:**
-- `git pull --rebase origin main` (nachdem `feed-diet` gemerged ist), `npm run build`, in chrome://extensions auf ↻.
-- **AI-Dev:** `source: "local"` statt „mock“ setzen und `coverage` in `analyzeLocally` befüllen (dann fliegt
-  der Fallback im Glue raus). `kind: "draft"` bei der Analyse nicht anders behandeln, das Glue loggt Drafts nur nicht.
-- **Scraper-Dev:** Compose-Box (`[data-testid="tweetTextarea_0"]`) als `FeedItem` mit `kind: "draft"` liefern, wenn Zeit ist.
-
-**Wichtig zu wissen:** Verifiziert in Chromium mit geladener Extension: 10 Posts → 10 Datensätze, doppelte Analyse
-zählt einmal, Badge = Anzahl „high“. Alte Ergebnisse ohne `overall` bekommen eine abgeleitete Stufe.
 
 ---
 
