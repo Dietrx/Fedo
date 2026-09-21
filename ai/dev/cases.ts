@@ -9,6 +9,8 @@ export interface Case {
   expect: SignalKey[];
   reject: SignalKey[];
   level: IntensityLevel[];
+  /** Needs real language understanding (tone, irony) → skipped for the offline engine. */
+  jevOnly?: boolean;
 }
 
 let n = 0;
@@ -114,5 +116,41 @@ export const CASES: Case[] = [
     expect: [],
     reject: ["conspiracy_framing", "scapegoating"],
     level: ["none", "low"],
+  },
+  // ── irony, satire, memes (Jev only: the offline engine cannot read tone) ──
+  {
+    item: post("If you approach me gently, like you would with an insane animal, I will reward you with Unlimited Access. Take notice, and learn."),
+    expect: [],
+    reject: ["dehumanizing_language", "fear_framing"],
+    level: ["none", "low"],
+    jevOnly: true,
+  },
+  {
+    item: post("'90s Grunge Singers Added to Endangered Species List"),
+    expect: [],
+    reject: ["dehumanizing_language", "factual_claim"],
+    level: ["none", "low"],
+    jevOnly: true,
+  },
+  {
+    item: post("nobody:\nabsolutely nobody:\nmy cat at 3am: THE FLOOR IS LAVA AND I MUST DESTROY EVERYTHING"),
+    expect: [],
+    reject: ["fear_framing", "sensationalism", "anger_framing"],
+    level: ["none"],
+    jevOnly: true,
+  },
+  {
+    item: post("Oh great, another brilliant idea from our genius government 🙄 Truly heroes. I just LOVE paying more taxes so they can waste it."),
+    expect: ["political_content", "political_persuasion"],
+    reject: ["dehumanizing_language"],
+    level: ["low", "medium"],
+    jevOnly: true,
+  },
+  {
+    item: post("Those people are like rats lol, just joking... unless? 😏 Seriously though they breed like crazy and ruin every neighborhood."),
+    expect: ["dehumanizing_language", "us_vs_them"],
+    reject: [],
+    level: ["medium", "high"],
+    jevOnly: true,
   },
 ];

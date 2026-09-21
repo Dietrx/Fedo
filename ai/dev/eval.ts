@@ -19,7 +19,8 @@ const verbose = process.argv.includes("-v");
 const analyzer = createAnalyzer({ mode, jevApiUrl: process.env.JEV_API_URL, jevApiKey: process.env.JEV_API_KEY });
 
 let failed = 0;
-for (const c of CASES) {
+const cases = CASES.filter((c) => mode === "jev" || !c.jevOnly);
+for (const c of cases) {
   const result = await analyzer.analyze({ kind: "post", item: c.item });
   const { signals } = result;
   const on = new Set(signals.filter((s) => s.score >= 0.5).map((s) => s.key));
@@ -32,7 +33,8 @@ for (const c of CASES) {
   if (problems.length) failed++;
   console.log(`${problems.length ? "✗" : "✓"} [${result.source} ${level.padEnd(6)} ${score.toFixed(2)}] ${c.item.text.slice(0, 70)}`);
   for (const p of problems) console.log(`      ${p}`);
+  if (verbose && result.explanation) console.log(`      why: ${result.explanation.slice(0, 140)}`);
   if (verbose) console.log(`      on: ${signals.filter((s) => s.score >= 0.5).map((s) => `${s.key} ${s.score.toFixed(2)}`).join(", ")}`);
 }
-console.log(`\n${CASES.length - failed}/${CASES.length} cases passed (${mode})`);
+console.log(`\n${cases.length - failed}/${cases.length} cases passed (${mode})`);
 process.exit(failed ? 1 : 0);

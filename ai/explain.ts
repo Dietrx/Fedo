@@ -8,7 +8,7 @@ import { assess } from "./assess";
 
 const MAX_SIGNALS = 3;
 
-export function buildExplanation(signals: Signal[], isVideo = false): string | undefined {
+export function buildExplanation(signals: Signal[], isVideo = false, note?: string): string | undefined {
   const { drivers } = assess(signals);
   const top = drivers.slice(0, MAX_SIGNALS);
   if (!top.length) return undefined;
@@ -24,7 +24,7 @@ export function buildExplanation(signals: Signal[], isVideo = false): string | u
     return `${label} (“${s.evidence}”)`;
   });
   const more = drivers.length > top.length ? ` and ${drivers.length - top.length} more` : "";
-  return `${subject} patterns of ${joinList(parts)}${more}. This describes techniques in the text, not whether the message is true or what the author intends.`;
+  return `${note ? note + " " : ""}${subject} patterns of ${joinList(parts)}${more}. This describes techniques in the text, not whether the message is true or what the author intends.`;
 }
 
 function joinList(parts: string[]): string {

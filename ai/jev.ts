@@ -20,8 +20,9 @@ import { overall } from "./assess";
 import { scoreSignals } from "./engine";
 import { buildExplanation } from "./explain";
 import { analyzeLocally, isPartial } from "./mock";
-import { JEV_KEYS, JEV_QUESTIONS } from "./questions";
+import { JEV_KEYS, JEV_QUESTIONS, TONE_QUESTIONS, type NoulQuestion, type ToneKey } from "./questions";
 import { buildStateObject } from "./state";
+import { applyTone, capForHumor, toneFrom, toneNote } from "./tone";
 
 const DEFAULT_MODEL = "typesafe/jev-1.13";
 const TIMEOUT_MS = 8_000;
@@ -33,17 +34,18 @@ export function createJevAnalyzer(apiUrl: string, apiKey: string): Analyzer {
   return {
     async analyze(input) {
       const t0 = Date.now();
-      let scores: Partial<Record<SignalKey, number>>;
+      let scores: Answers;
       // Whole post and every sentence go out in parallel → sentence scores cost no extra latency.
       const sentences = input.kind === "post" ? splitSentences(input.item.text) : [];
-      const perSentence = Promise.allSettled(sentences.map((text) => callJev(endpoint, apiKey, model, { post_text: text })));
+      const perSentence = Promise.allSettled(sentences.map((text) => callJev(endpoint, apiKey, model, { post_text: text }, JEV_QUESTIONS)));
       try {
-        scores = await callJev(endpoint, apiKey, model, buildStateObject(input));
+        scores = await callJev(endpoint, apiKey, model, buildStateObject(input), WHOLE_POST_QUESTIONS);
       } catch (e) {
         console.warn("[fedo:ai] Jev failed → local engine result:", e instanceof Error ? e.message : e);
         return analyzeLocally(input, t0);
       }
       const located = locate(sentences, await perSentence);
+      const tone = toneFrom(scores);
 
       const local = new Map(scoreSignals(input).map((l) => [l.key, l]));
       const thin = wordCount(input) < MIN_WORDS;
@@ -55,6 +57,7 @@ export function createJevAnalyzer(apiUrl: string, apiKey: string): Analyzer {
         if (loc && sentences.length >= 2) score = Math.min(score, loc.score + LOCATE_MARGIN);
         // Hashtag-only / two-word posts give the model nothing to judge → it needs local support there.
         if (thin && key !== "political_content" && (local.get(key)?.score ?? 0) < 0.3) score *= 0.5;
+        score = applyTone(key, score, tone);
         score = round(fuse(key, score, local.get(key)?.score ?? 0, Boolean(input.item.quotedText)));
         // Quote: the precise local phrase if there is one, else the sentence Jev itself rated highest.
         const evidence = local.get(key)?.evidence ?? (loc && loc.score >= 0.5 ? loc.quote : undefined);
@@ -63,8 +66,8 @@ export function createJevAnalyzer(apiUrl: string, apiKey: string): Analyzer {
       return {
         itemId: input.item.id,
         signals,
-        overall: overall(signals),
-        explanation: buildExplanation(signals, input.kind === "transcript"),
+        overall: capForHumor(overall(signals), tone),
+        explanation: buildExplanation(signals, input.kind === "transcript", toneNote(tone)),
         partial: isPartial(input),
         source: "jev",
         latencyMs: Date.now() - t0,
@@ -88,7 +91,7 @@ function splitSentences(text: string): string[] {
 }
 
 /** Per signal: the sentence with the highest score (→ evidence quote + "is it locatable at all?"). */
-function locate(sentences: string[], results: PromiseSettledResult<Partial<Record<SignalKey, number>>>[]): Map<SignalKey, { score: number; quote: string }> {
+function locate(sentences: string[], results: PromiseSettledResult<Answers>[]): Map<SignalKey, { score: number; quote: string }> {
   const best = new Map<SignalKey, { score: number; quote: string }>();
   // If any sentence call failed we can't tell "not locatable" from "not measured" → no locatability data at all.
   if (!sentences.length || results.some((r) => r.status === "rejected")) return best;
@@ -127,24 +130,29 @@ function fuse(key: SignalKey, jev: number, local: number, hasQuote: boolean): nu
   return score;
 }
 
+type Answers = Partial<Record<SignalKey | ToneKey, number>>;
+
+/** Tone is a property of the whole post → only asked there, sentences get the signal questions only. */
+const WHOLE_POST_QUESTIONS: Record<string, NoulQuestion> = { ...JEV_QUESTIONS, ...TONE_QUESTIONS };
+
 interface DecisionsResponse {
   answers?: Record<string, { type: string; noul?: number }>;
   error?: { message?: string };
 }
 
 /** One request, all questions: every Noul is evaluated independently against the same state. */
-async function callJev(endpoint: string, apiKey: string, model: string, state: Record<string, unknown>): Promise<Partial<Record<SignalKey, number>>> {
+async function callJev(endpoint: string, apiKey: string, model: string, state: Record<string, unknown>, questions: Record<string, NoulQuestion>): Promise<Answers> {
   const res = await fetch(endpoint, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}`, "X-Title": "Fedo Shield" },
-    body: JSON.stringify({ model, state, questions: JEV_QUESTIONS }),
+    body: JSON.stringify({ model, state, questions }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Jev ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const json = (await res.json()) as DecisionsResponse;
   if (!json.answers) throw new Error(`Jev returned no answers: ${json.error?.message ?? "unknown"}`);
-  const scores: Partial<Record<SignalKey, number>> = {};
-  for (const key of JEV_KEYS) {
+  const scores: Answers = {};
+  for (const key of Object.keys(questions) as (SignalKey | ToneKey)[]) {
     const noul = json.answers[key]?.noul;
     if (typeof noul === "number") scores[key] = noul;
   }

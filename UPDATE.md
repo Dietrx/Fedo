@@ -10,6 +10,25 @@
 
 ---
 
+## 2026-09-21 · `ai/irony-and-memes` · AI · Ironie, Satire und Memes werden erkannt
+
+**Was hat sich geändert:**
+- Getestet an 183 weiteren echten Posts (The Onion, Postillon, dril, Meme-/Satire-/Rant-Hashtags). Problem: Jev las alles wörtlich
+  („like an insane animal“ → Dehumanizing, Satire-Schlagzeilen → Sensationalism).
+- Jetzt drei Kontextfragen im selben Request (keine Zusatz-Latenz): Humor? Sarkasmus? Reale Gruppe als Ziel?
+  - Humor ohne reale Zielgruppe → Signale gedämpft (Onion, Postillon, Katzen-Memes landen auf `none`).
+  - Humor auf Kosten einer realen Gruppe → NICHT gedämpft, aber höchstens `medium`. „War nur Spaß“-Hetze erkennt Jev gar nicht erst als Humor → bleibt `high`.
+  - Sarkasmus → Scores bleiben (ist trotzdem Persuasion), die Erklärung beginnt mit „The author uses sarcasm…“.
+- Ergebnis Humor-Sample: none 89 → 121, medium 23 → 14. News-Sample ohne Regression. Evals 15/15 lokal, 20/20 Jev.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, ↻
+- **UI-Dev:** `explanation` kann jetzt mit einem Ton-Hinweis beginnen („This reads as humor or satire…“) → gut sichtbar im „Why?“-Panel.
+
+**Wichtig zu wissen:** Ton-Erkennung gibt es nur im Jev-Modus. Die lokale Fallback-Engine liest weiter wörtlich.
+
+---
+
 ## 2026-09-21 · `main @ e6fc253` · UI · Design-System, vier Themes, Slop-Cover, Live-Tracker, Dashboard-Popup
 
 **Was hat sich geändert:**
