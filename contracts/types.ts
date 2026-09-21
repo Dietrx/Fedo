@@ -82,8 +82,19 @@ export interface Signal {
   evidence?: string;
 }
 
+export type IntensityLevel = "none" | "low" | "medium" | "high";
+
+/** All signals folded into one value: how heavily persuasion TECHNIQUES are used (not: how true / how bad). */
+export interface OverallIntensity {
+  level: IntensityLevel;
+  /** 0..1 */
+  score: number;
+}
+
 export interface AnalysisResult {
   itemId: string;
+  /** Overall level for a badge per post. Optional: older/partial results may not have it → UI must handle `undefined`. */
+  overall?: OverallIntensity;
   /** Only signals that were evaluated. UI decides what to show based on score. */
   signals: Signal[];
   /** 1–2 neutral sentences for "Why am I seeing this?" */
