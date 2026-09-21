@@ -10,6 +10,27 @@
 
 ---
 
+## 2026-09-21 · `ai/faster-media` · AI + Scraper (X) · Bilder werden jetzt zuverlässig erkannt, Bild + Speech-to-Text ~2,5× schneller
+
+**Was hat sich geändert:**
+- **Ursache für „Bilder werden nur manchmal erkannt" (Scraper, `scraper/platforms/x.ts`):** X fügt `<img>`/`<video>` erst ein, wenn das Medium geladen ist,
+  und der GraphQL-Replay für die erste Bildschirmseite kommt einen Moment NACH dem ersten Scan. Der Post wurde sofort gelesen → oft `media: []` → die AI
+  wusste nichts vom Bild. Jetzt: Hat ein Post sichtbar einen Medien-Container, aber weder GraphQL-Datensatz noch Element, wird bis zu 2,5 s (alle 250 ms)
+  nachgesehen, bevor `onItem` kommt. Posts ohne Medien und Posts mit GraphQL-Datensatz sind unverändert sofort da.
+- **Schneller (gemessen, je 3–4 Läufe):** Bild 2,4–4,2 s → 0,9–1,9 s, Speech-to-Text 2,7 s → 1,1 s pro 8-s-Stück. Modell jetzt `google/gemini-3.1-flash-lite`
+  (gleiche OCR, gleiche KI-Bild-Urteile auf den Testbildern, gleiches Transkript). X-Fotos werden als 680-px-Variante angefragt (`name=small`).
+- Robuster: ein sofortiger zweiter Versuch bei Fehlern; ein Post wartet max. 4 s (vorher 6 s) aufs Bild.
+- Belegt: echte `pbs.twimg.com`-URLs kann der Anbieter laden (4 echte X-Bilder getestet).
+
+**Was musst du tun:**
+- `git pull --rebase origin main`; in `.env` `STT_MODEL=google/gemini-3.1-flash-lite` setzen (oder Zeile löschen → Default); `npm run build`; ↻
+- **Scraper-Dev (Franz): bitte kurz drüberschauen**, die Änderung in `x.ts` kam vom AI-Dev, weil sie die Bild-Erkennung blockiert hat. Nur im Browser prüfbar.
+
+**Wichtig zu wissen:** Bleibt ein Bild trotzdem aus, steht im Service-Worker-Log `[fedo:ai] vision failed → text only: …`. Das Post-Ergebnis wird im Glue pro Post gecacht,
+ein zu spät gekommenes Bild wird also nicht nachgereicht.
+
+---
+
 ## 2026-09-21 · `ai/vision` · AI (+3 optionale Config-Felder) · Bilder werden gesehen: Text im Bild, Video-Standbild, Anzeichen für KI-Bilder
 
 **Was hat sich geändert:**

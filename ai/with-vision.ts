@@ -19,11 +19,11 @@ import type { Vision, VisionResult } from "./vision";
 /** Below this the picture has no message of its own (a logo, a street sign) → not worth a second pass. */
 const MIN_IMAGE_WORDS = MIN_WORDS;
 /**
- * Vision latency varies a lot by provider (measured 1–14 s). A post never waits longer than this for its
+ * Vision usually answers in ~1 s, but providers hiccup (measured up to 14 s). A post never waits longer than this for its
  * picture: after that the text-only result is shown (coverage stays "text_only"). The answer still lands in
  * the vision cache, so the next analysis of the same picture gets it for free.
  */
-const VISION_WAIT_MS = 6_000;
+const VISION_WAIT_MS = 4_000;
 
 export function withVision(inner: Analyzer, vision?: Vision): Analyzer {
   if (!vision) return inner;

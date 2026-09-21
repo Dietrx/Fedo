@@ -3,7 +3,7 @@
  *
  *   STT_API_URL=https://api.openai.com/v1/audio/transcriptions      (Whisper-style: multipart, exact timestamps)
  *   STT_API_URL=https://openrouter.ai/api/v1/chat/completions       (any audio-capable chat model via `input_audio`)
- *   STT_MODEL=google/gemini-2.5-flash                                (default for the chat kind; `whisper-1` for the other)
+ *   STT_MODEL=google/gemini-3.1-flash-lite                           (default for the chat kind; `whisper-1` for the other)
  *
  * Input is always 16 kHz mono WAV (the scraper converts in the page), so every provider accepts it.
  * Output: the text plus sentence segments with a start time — the timeline needs the `t`.
@@ -12,6 +12,8 @@
 import type { AnalyzerConfig, AudioChunk, TranscriptionResult, Transcriber } from "@contracts";
 
 const TIMEOUT_MS = 20_000;
+/** Measured on the same 8 s chunk: gemini-2.5-flash ~2.7 s, gemini-3.1-flash-lite ~1.1 s, identical transcript. */
+const DEFAULT_CHAT_MODEL = "google/gemini-3.1-flash-lite";
 
 const NOT_CONFIGURED: TranscriptionResult = { configured: false, text: "", segments: [] };
 
@@ -21,7 +23,7 @@ export function createTranscriber(config: AnalyzerConfig): Transcriber {
     return { async transcribe() { return NOT_CONFIGURED; } };
   }
   const whisper = /\/audio\/transcriptions\/?$/.test(url);
-  const model = config.sttModel || (whisper ? "whisper-1" : "google/gemini-2.5-flash");
+  const model = config.sttModel || (whisper ? "whisper-1" : DEFAULT_CHAT_MODEL);
   return {
     async transcribe(chunk) {
       if (!chunk.audio) return { configured: true, text: "", segments: [] };
