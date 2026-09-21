@@ -4,6 +4,15 @@
  */
 import type { AnalysisInput } from "@contracts";
 
+/**
+ * `item.captions` = the platform's full caption file. When the same captions also arrive as transcript
+ * chunks (the scraper sends both), using the field too would count every sentence twice.
+ */
+export function captionsOf(input: AnalysisInput): string | undefined {
+  if (input.kind === "transcript" && input.transcript.some((c) => c.source === "captions")) return undefined;
+  return input.item.captions;
+}
+
 export function buildState(input: AnalysisInput): string {
   const { item } = input;
   const lines = [
@@ -13,7 +22,8 @@ export function buildState(input: AnalysisInput): string {
   ];
   if (item.quotedText) lines.push(`quoted_text: ${item.quotedText}`);
   if (item.hashtags.length) lines.push(`hashtags: ${item.hashtags.map((h) => "#" + h).join(" ")}`);
-  if (item.captions) lines.push(`captions: ${item.captions}`);
+  const captions = captionsOf(input);
+  if (captions) lines.push(`captions: ${captions}`);
   if (item.media.length) lines.push(`media: ${item.media.map((m) => m.type + (m.altText ? ` (alt: ${m.altText})` : "")).join(", ")}`);
   if (input.kind === "transcript") {
     lines.push(`spoken_text: ${input.transcript.map((c) => c.text).join(" ")}`);
@@ -24,7 +34,7 @@ export function buildState(input: AnalysisInput): string {
 export function allText(input: AnalysisInput): string {
   const { item } = input;
   const spoken = input.kind === "transcript" ? input.transcript.map((c) => c.text).join(" ") : "";
-  return [item.text, item.quotedText, item.captions, spoken].filter(Boolean).join(" ");
+  return [item.text, item.quotedText, captionsOf(input), spoken].filter(Boolean).join(" ");
 }
 
 /**
@@ -41,7 +51,8 @@ export interface Segment {
 export function buildSegments(input: AnalysisInput): Segment[] {
   const { item } = input;
   const segments: Segment[] = [{ source: "text", text: item.text, weight: 1 }];
-  if (item.captions) segments.push({ source: "captions", text: item.captions, weight: 1 });
+  const captions = captionsOf(input);
+  if (captions) segments.push({ source: "captions", text: captions, weight: 1 });
   if (input.kind === "transcript") {
     segments.push({ source: "spoken", text: input.transcript.map((c) => c.text).join(" "), weight: 1 });
   }
@@ -70,7 +81,8 @@ export function buildStateObject(input: AnalysisInput): Record<string, unknown> 
     post_text: item.text,
   };
   if (item.hashtags.length) state.hashtags = item.hashtags.map((h) => "#" + h);
-  if (item.captions) state.video_captions = item.captions;
+  const captions = captionsOf(input);
+  if (captions) state.video_captions = captions;
   if (input.kind === "transcript") state.spoken_text = input.transcript.map((c) => c.text).join(" ");
   const alt = item.media.map((m) => m.altText).filter(Boolean);
   if (alt.length) state.image_descriptions = alt;
