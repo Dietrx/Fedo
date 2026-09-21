@@ -19,6 +19,8 @@ interface Entry {
   progress?: VideoProgress;
   /** audio chunks waiting for / in transcription, so the ETA and the "done" moment are honest */
   pendingAudio: number;
+  /** the scraper said "no more audio" (video ended, paused, scrolled away). A transcription that is still in flight must not reopen the video. */
+  closed?: boolean;
 }
 
 /** Roughly how long one chunk takes from capture to score — used for the countdown. */
@@ -49,6 +51,7 @@ async function main() {
 
   /** Video over: close the transcript (no more LIVE) and score it one last time. */
   function finish(entry: Entry, atSec: number) {
+    entry.closed = true;
     for (const c of entry.transcript) c.isFinal = true;
     setProgress(entry, { phase: "done", coveredSec: atSec, etaAt: undefined });
     if (entry.transcript.length) analyze(entry);
@@ -112,12 +115,15 @@ async function main() {
         else if (chunk.ended) finish(entry, chunk.t1);
         return;
       }
+      // Audio again with nothing in flight = the user pressed play again → a new listening session.
+      if (entry.closed && entry.pendingAudio === 0) entry.closed = false;
       entry.pendingAudio++;
       const remainingSec = duration ? Math.max(0, duration - chunk.t1) : 0;
       setProgress(entry, {
         phase: "transcribing",
         durationSec: duration,
-        etaAt: Date.now() + remainingSec * 1000 + STT_LATENCY_MS,
+        // Without a known duration there is nothing to count down to: the old value hit 0 after 6 s ("finishing…") mid-video.
+        etaAt: duration ? Date.now() + remainingSec * 1000 + STT_LATENCY_MS : undefined,
       });
       try {
         const res = await send({ type: "fedo/transcribe", chunk });
@@ -131,19 +137,20 @@ async function main() {
         const chunks: TranscriptChunk[] = res.segments.map((seg, i) => ({
           itemId: chunk.itemId,
           text: seg.text,
-          isFinal: chunk.ended || i < res.segments.length - 1,
+          isFinal: chunk.ended || entry.closed === true || i < res.segments.length - 1,
           t: seg.t,
           source: "stt",
         }));
         entry.transcript.push(...chunks);
         entry.pendingAudio--;
-        setProgress(entry, { phase: chunk.ended && !entry.pendingAudio ? "done" : "listening", coveredSec: chunk.t1, durationSec: duration });
+        const over = (chunk.ended || entry.closed === true) && !entry.pendingAudio;
+        setProgress(entry, { phase: over ? "done" : "listening", coveredSec: chunk.t1, durationSec: duration, etaAt: over ? undefined : entry.progress?.etaAt });
         if (chunks.length) analyze(entry);
         else if (chunk.ended) finish(entry, chunk.t1);
       } catch (e) {
         entry.pendingAudio--;
         console.warn("[fedo] transcription failed", e);
-        setProgress(entry, { phase: chunk.ended ? "done" : "listening" });
+        setProgress(entry, { phase: (chunk.ended || entry.closed === true) && !entry.pendingAudio ? "done" : "listening" });
       }
     },
 

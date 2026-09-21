@@ -10,6 +10,27 @@
 
 ---
 
+## 2026-09-21 · `fix/video-finishing` · Scraper (Video) + Glue + AI · Videos bleiben nicht mehr bei „finishing…" hängen, Bild-Posts ohne Text werden abgewartet
+
+**Was hat sich geändert:**
+- **„finishing…" für immer (Ursache in `scraper/video.ts`):** Das Ende-Signal (`ended: true`) ging verloren, wenn (1) das letzte Audiostück still oder < 0,5 s war
+  (die meisten Videos enden so), (2) pausiert / weggescrollt wurde (kam als `ended: false`, obwohl der Contract „video ended OR capture stopped" sagt),
+  (3) das Video loopt (TikTok immer, X bei kurzen Clips: `ended` feuert nie, Aufnahme lief bis zum 3-min-Limit), (4) das 3-min-Limit griff.
+  Jetzt geht in all diesen Fällen ein leeres Abschluss-Stück raus; ein Zeitsprung rückwärts zählt als Ende.
+- **Glue (`extension/src/content.ts`):** kein Countdown ohne bekannte Videolänge (lief nach 6 s auf „finishing…"); eine noch laufende Transkription
+  kann ein bereits beendetes Video nicht wieder auf „Listening" setzen (`entry.closed`).
+- **Schneller:** erstes Audiofenster 4 s statt 8 s → erste Scores nach ~5–6 s statt ~10 s.
+- **AI:** Posts, die NUR aus einem Bild bestehen, warten jetzt voll auf die Bilderkennung (vorher nach 4 s „Not enough text to assess"). Dazu Diagnose
+  im Service-Worker-Log: `[fedo:ai] vision x:123: 1 image(s), 83 words in image, synthetic 0.1 (1437 ms)` bzw. `… no answer after … ms` / `… skipped, no fetchable image URL`.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, in chrome://extensions ↻ **und danach den X/TikTok-Tab neu laden** (sonst „Analysis unavailable": das alte
+  Content-Script hat keine Verbindung mehr zum neu geladenen Worker).
+- **Popup prüfen: Analysis = Cloud.** In „Local" gibt es bewusst keine Bilderkennung und kein Jev. Nach „Load unpacked" steht es wieder auf Local.
+- **UI-Dev / Scraper-Dev: bitte drüberschauen**, die Änderungen in `scraper/video.ts` und `content.ts` kamen vom AI-Dev und sind nur im Browser prüfbar.
+
+---
+
 ## 2026-09-21 · `ui/card-top5-apple` · UI · Karte oben rechts standardmäßig offen, Top-5-Balken auch bei sauberen Posts, ruhigerer Look; Dashboard zieht mit
 
 **Was hat sich geändert** (nur `ui/`, direkt auf `main` gepusht – Entscheidung Franz, Zeitdruck vor der Demo; **Noah, bitte einmal drüberschauen**):
