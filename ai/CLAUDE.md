@@ -3,7 +3,7 @@ Aufgabe: `AnalysisInput` → `AnalysisResult` (Scores 0..1 pro Signal aus contra
 - Schnittstelle: `Analyzer` in contracts/modules.ts
 - **Kein `chrome.*` und kein `document`** hier, alles muss in Node laufen
 - Testen: `npm run dev:ai` (Mock) bzw. `npm run dev:ai -- --jev` (echte API, braucht `.env`)
-- Offene Punkte: Jev gegen echtes Guthaben testen + Fragen in `questions.ts` justieren, STT für Video-Audio (braucht `chrome.tabCapture` → Glue/Scraper, nicht in `ai/`), Vision-Zweig für `synthetic_media`
+- Offene Punkte: Jev gegen echtes Guthaben testen + Fragen in `questions.ts` justieren, Vision-Zweig, Vision-Zweig für `synthetic_media`
 - Formulierung: Techniken beschreiben, nie Meinungen oder Absichten bewerten
 
 ## Aufbau (Stand: lokale Engine)
@@ -18,6 +18,8 @@ Aufgabe: `AnalysisInput` → `AnalysisResult` (Scores 0..1 pro Signal aus contra
 - Echte Posts testen: `npx tsx ai/dev/fetch-live.ts /tmp/live.json` (Bluesky + Mastodon, ohne Login; Datei NICHT committen), dann `npx tsx ai/dev/run-live-sample.ts /tmp/live.json [--jev]`
 - Jev bewertet zusätzlich jeden Satz einzeln (parallel): liefert das Evidence-Zitat und dämpft Signale, die sich in keinem Satz lokalisieren lassen
 - `tone.ts`: Ironie/Satire/Memes. Jev beantwortet im selben Request drei Kontextfragen (Humor? Sarkasmus? reale Gruppe als Ziel?). Verspielter Humor ohne reale Zielgruppe → Signale gedämpft; Humor GEGEN eine Gruppe → nicht gedämpft, max. `medium`; Sarkasmus → nur in der Erklärung benannt. Nur im Jev-Modus, die lokale Engine kann keinen Ton lesen
+- Video mit Ton: `stt.ts` (Speech-to-Text, vom Glue über `fedo/transcribe` aufgerufen) → Glue baut `TranscriptChunk`s → `live.ts`. `transcript.ts` setzt Sätze wieder zusammen, die an den 8-s-Audiogrenzen zerschnitten wurden. Im Jev-Modus wird jeder fertige Satz einzeln bewertet (pro Video gecacht) → Zitate + `timeline`. Ende-zu-Ende in Node: `npx tsx ai/dev/run-stt.ts <16kHz.wav> [--jev]` (Testdatei: `say -o /tmp/s.wav --data-format=LEI16@16000 "text"`)
+- `coverage.ts`: setzt `result.coverage` (`insufficient` < 4 echte Wörter, `text_only` bei ungesehenen Medien) für alle Analyzer. Lokale Engine meldet `source: "local"`
 - Regressionstests: `npx tsx ai/dev/eval.ts` (Fälle in `ai/dev/cases.ts`). Falsch bewerteter Post → Fall ergänzen, dann Lexikon anpassen
 - `llm.ts`: Alternative mit beliebigem Chat-Modell. Aktiv, wenn `JEV_API_URL` auf `/chat/completions` endet
   (Modell wechseln: `...#google/gemini-2.5-flash` an die URL hängen). Fehler/Timeout → lokale Engine.

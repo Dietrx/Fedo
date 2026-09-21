@@ -15,8 +15,9 @@
  *  - STT for videos (tab audio → streaming transcript) → produce `kind: "transcript"` inputs
  *  - vision/deepfake branch → fill `synthetic_media`, source: "combined"
  */
-import type { AnalysisInput, Analyzer, Signal, SignalKey } from "@contracts";
+import type { AnalysisInput, Analyzer, FeedItem, Signal, SignalKey, TimelineEvent, TranscriptChunk } from "@contracts";
 import { overall } from "./assess";
+import { MIN_WORDS, wordCount } from "./coverage";
 import { scoreSignals } from "./engine";
 import { buildExplanation } from "./explain";
 import { analyzeLocally, isPartial } from "./mock";
@@ -31,13 +32,34 @@ export function createJevAnalyzer(apiUrl: string, apiKey: string): Analyzer {
   const [endpoint = apiUrl, fragment] = apiUrl.split("#");
   const model = fragment || DEFAULT_MODEL;
 
+  /** Sentence scores per video (a sentence never changes once final). Oldest video is dropped first. */
+  const memos = new Map<string, Map<string, Answers>>();
+  function memoFor(itemId: string): Map<string, Answers> {
+    const memo = memos.get(itemId) ?? new Map<string, Answers>();
+    memos.delete(itemId);
+    memos.set(itemId, memo);
+    if (memos.size > MAX_MEMO_VIDEOS) memos.delete(memos.keys().next().value!);
+    return memo;
+  }
+  async function scoreSentence(text: string, memo?: Map<string, Answers>): Promise<Answers> {
+    const known = memo?.get(text);
+    if (known) return known;
+    const answers = await callJev(endpoint, apiKey, model, { post_text: text }, JEV_QUESTIONS);
+    memo?.set(text, answers);
+    return answers;
+  }
+
   return {
     async analyze(input) {
       const t0 = Date.now();
       let scores: Answers;
       // Whole post and every sentence go out in parallel → sentence scores cost no extra latency.
-      const sentences = input.kind === "post" ? splitSentences(input.item.text) : [];
-      const perSentence = Promise.allSettled(sentences.map((text) => callJev(endpoint, apiKey, model, { post_text: text }, JEV_QUESTIONS)));
+      // Posts: split the text. Videos: every finished transcript chunk IS a sentence; its scores are cached,
+      // so each update only pays for the sentences that are new.
+      const spoken = input.kind === "transcript" ? input.transcript.filter((c) => c.isFinal && isSentence(c.text)) : [];
+      const sentences = input.kind === "post" ? splitSentences(input.item.text) : spoken.map((c) => c.text);
+      const memo = input.kind === "transcript" ? memoFor(input.item.id) : undefined;
+      const perSentence = Promise.allSettled(sentences.map((text) => scoreSentence(text, memo)));
       try {
         scores = await callJev(endpoint, apiKey, model, buildStateObject(input), WHOLE_POST_QUESTIONS);
       } catch (e) {
@@ -66,6 +88,7 @@ export function createJevAnalyzer(apiUrl: string, apiKey: string): Analyzer {
       return {
         itemId: input.item.id,
         signals,
+        timeline: memo ? spokenTimeline(spoken, memo) : undefined,
         overall: capForHumor(overall(signals), tone),
         explanation: buildExplanation(signals, input.kind === "transcript", toneNote(tone)),
         partial: isPartial(input),
@@ -77,17 +100,41 @@ export function createJevAnalyzer(apiUrl: string, apiKey: string): Analyzer {
 }
 
 const LOCATE_MARGIN = 0.25;
-const MIN_WORDS = 4;
 const MAX_SENTENCES = 6;
+const MAX_MEMO_VIDEOS = 30;
+/** Timeline: a sentence must show the technique clearly, and at most this many techniques per sentence. */
+const TIMELINE_FROM = 0.6;
+const TIMELINE_PER_SENTENCE = 2;
 const MAX_QUOTE = 90;
 
-/** Sentences worth scoring on their own: real words, not just links or hashtags. */
+/** Worth scoring on its own: real words, not just links or hashtags. */
+const isSentence = (t: string) => t.replace(/https?:\/\/\S+|[#@][\p{L}\p{N}_.]+/gu, "").split(/\s+/).filter((w) => /\p{L}{2,}/u.test(w)).length >= 3;
+
 function splitSentences(text: string): string[] {
   return text
     .split(/(?<=[.!?…])\s+|\n+/u)
     .map((t) => t.trim())
-    .filter((t) => t.replace(/https?:\/\/\S+|[#@][\p{L}\p{N}_.]+/gu, "").split(/\s+/).filter((w) => /\p{L}{2,}/u.test(w)).length >= 3)
+    .filter(isSentence)
     .slice(0, MAX_SENTENCES);
+}
+
+const BLANK_ITEM: FeedItem = { id: "", platform: "tiktok", author: { handle: "" }, text: "", hashtags: [], media: [], scrapedAt: 0 };
+
+/** Videos: WHEN was which technique spoken, judged by Jev sentence by sentence (the local lexicon rarely matches real speech). */
+function spokenTimeline(spoken: TranscriptChunk[], memo: Map<string, Answers>): TimelineEvent[] {
+  const events: TimelineEvent[] = [];
+  for (const chunk of spoken) {
+    const answers = memo.get(chunk.text);
+    if (!answers) continue;
+    // Same rule as for the whole post: pattern-defined signals need the local engine to agree.
+    const local = new Map(scoreSignals({ kind: "post", item: { ...BLANK_ITEM, text: chunk.text } }).map((l) => [l.key, l.score]));
+    JEV_KEYS.map((key) => ({ key, score: fuse(key, answers[key] ?? 0, local.get(key) ?? 0, false) }))
+      .filter((e) => e.key !== "political_content" && e.score >= TIMELINE_FROM)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, TIMELINE_PER_SENTENCE)
+      .forEach((e) => events.push({ t: chunk.t, key: e.key, score: round(e.score), evidence: shorten(chunk.text) }));
+  }
+  return events;
 }
 
 /** Per signal: the sentence with the highest score (→ evidence quote + "is it locatable at all?"). */
@@ -107,19 +154,13 @@ function locate(sentences: string[], results: PromiseSettledResult<Answers>[]): 
 
 const shorten = (t: string) => (t.length > MAX_QUOTE ? t.slice(0, MAX_QUOTE - 1).trimEnd() + "…" : t);
 
-function wordCount(input: AnalysisInput): number {
-  const spoken = input.kind === "transcript" ? input.transcript.map((c) => c.text).join(" ") : "";
-  const text = [input.item.text, input.item.captions, spoken, input.item.quotedText].filter(Boolean).join(" ");
-  return text.replace(/https?:\/\/\S+|[#@][\p{L}\p{N}_.]+/gu, "").split(/\s+/).filter((w) => /\p{L}{2,}/u.test(w)).length;
-}
-
 /**
  * Signals that are DEFINED by surface patterns (a number without a source, a discount code, "like and RT").
  * Measured on ai/dev/cases.ts: Jev over-fires on these (any declarative sentence looks like a "factual claim"),
  * while the local cues are precise. So both have to agree: without local support the Jev score is
  * scaled to below the 0.5 display threshold.
  */
-const PATTERN_SIGNALS = new Set<SignalKey>(["factual_claim", "commercial_persuasion", "engagement_bait", "possible_ai_slop"]);
+const PATTERN_SIGNALS = new Set<SignalKey>(["factual_claim", "engagement_bait", "possible_ai_slop"]);
 
 function fuse(key: SignalKey, jev: number, local: number, hasQuote: boolean): number {
   let score = jev;

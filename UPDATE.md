@@ -10,6 +10,26 @@
 
 ---
 
+## 2026-09-21 · `ai/video-integration` · AI · Video-Pipeline (captureStream → STT → Analyse) AI-seitig angepasst + getestet
+
+**Was hat sich geändert** (nur `ai/`, baut auf `video-stt` auf):
+- Ende-zu-Ende in Node getestet (`npx tsx ai/dev/run-stt.ts <wav> --jev`): STT ~1,3 s pro 8-s-Stück (Gemini 2.5 Flash über OpenRouter),
+  wortgenau; Musik/Rauschen → leeres Transkript, nichts Erfundenes. Danach Jev ~0,5 s → Anzeige ca. 10 s hinter dem Video.
+- Sätze, die an den 8-s-Audiogrenzen zerschnitten werden („… Not us. The" | „newcomers get …"), setzt `ai/transcript.ts` wieder zusammen.
+- Jev bewertet jeden fertigen gesprochenen Satz einzeln (pro Video gecacht → jeder Satz kostet genau einmal):
+  `timeline` und Zitate funktionieren damit auch bei natürlicher Sprache, nicht nur bei Lexikon-Treffern.
+- `ai/` setzt `coverage` jetzt selbst (der Fallback in `background.ts` greift dann nicht mehr) und meldet `source: "local"` für die Offline-Engine.
+- `ai/` ist auf dem Stand von `main` (Ton-Erkennung für Satire/Ironie aus #11).
+
+**Was musst du tun:**
+- In `.env`: `STT_API_URL=https://openrouter.ai/api/v1/chat/completions`, `STT_API_KEY=<OpenRouter-Key>`, `STT_MODEL=google/gemini-2.5-flash` → `npm run build` → ↻
+- **Im Popup auf „cloud" stellen**, sonst läuft nur die lokale Engine (`DEFAULT_SETTINGS.mode` ist `"local"`). Für die Demo wichtig!
+- **Glue (UI-Dev):** Post-Cache in `background.ts` darf `kind: "draft"` nicht cachen (gleiche id, Text ändert sich beim Tippen) → `input.item.kind !== "draft"` in die Cache-Bedingung.
+
+**Wichtig zu wissen:** Im Cloud-Modus geht Video-AUDIO an OpenRouter/Google und Text an TypeSafe. Der Key steckt in `dist/` → `dist/` nie weitergeben.
+
+---
+
 ## 2026-09-21 · Branch `video-stt` · Scraper + AI + Glue + UI · Videos werden wirklich gehört (Sprache → Text → Analyse, mit Fortschritt und Countdown)
 
 **Was hat sich geändert:**
