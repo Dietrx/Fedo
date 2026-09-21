@@ -8,7 +8,9 @@ import { SIGNALS } from "@contracts";
 
 export type ThemeId = "light" | "dark" | "light-cb" | "dark-cb";
 export type ThemePref = "system" | "light" | "dark";
+/** The groups the theme has colours for. contracts/signals.ts may add more: those render neutral until a colour is added here. */
 export type Group = "political" | "rhetoric" | "credibility" | "synthetic";
+export type AnyGroup = Group | "other";
 
 type Palette = Record<string, string>;
 
@@ -66,8 +68,13 @@ const CAT: Record<ThemeId, Cat & { clean: [string, string] }> = {
 
 export const GROUPS: Group[] = ["political", "rhetoric", "credibility", "synthetic"];
 /** Shape glyph per group, shown before the label in the colour-blind themes so hue never carries meaning alone. */
-export const GLYPH: Record<Group, string> = { political: "◆", rhetoric: "▲", credibility: "●", synthetic: "■" };
-export const groupOf = (key: SignalKey): Group => SIGNALS[key].group;
+export const GLYPH: Record<AnyGroup, string> = { political: "◆", rhetoric: "▲", credibility: "●", synthetic: "■", other: "○" };
+const KNOWN = new Set<string>(["political", "rhetoric", "credibility", "synthetic"]);
+/** Group of a signal for colouring. An unknown group (new in contracts) maps to "other" = neutral ink. */
+export const groupOf = (key: SignalKey): AnyGroup => {
+  const g = (SIGNALS[key] as { group?: string } | undefined)?.group ?? "other";
+  return (KNOWN.has(g) ? g : "other") as AnyGroup;
+};
 
 const SCALE = {
   "font-sans": `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif`,
@@ -87,6 +94,8 @@ function vars(theme: ThemeId): string {
     out.push(`--cat-${g}:${fill}`, `--cat-${g}-on:${on}`, `--cat-${g}-tint:${tint}`, `--cat-${g}-ink:${ink}`);
   }
   out.push(`--clean:${cat.clean[0]}`, `--clean-tint:${cat.clean[1]}`);
+  // "other": a group the theme doesn't know yet → neutral
+  out.push(`--cat-other:${neutral["ink-muted"]}`, `--cat-other-on:${neutral.ground}`, `--cat-other-tint:${neutral["surface-sunken"]}`, `--cat-other-ink:${neutral.ink}`);
   return out.join(";");
 }
 

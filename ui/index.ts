@@ -8,6 +8,7 @@
  */
 import { DEFAULT_SETTINGS, SIGNALS, type AnalysisResult, type OverlayRenderer, type OverlayState, type Signal } from "@contracts";
 import { loadPrefs, onStorageChange, bumpStats, DEFAULT_PREFS, type UiPrefs } from "./prefs";
+import { appendLog, entryFrom } from "./log";
 import { GLYPH, groupOf, hostIsDark, resolveTheme, type ThemeId } from "./theme";
 import { OVERLAY_CSS } from "./styles";
 
@@ -94,6 +95,7 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
         e.counted = true;
         const shown = visible(state.result, minScore);
         bumpStats(shown.length > 0, shown[0] ? groupOf(shown[0].key) : undefined).catch(() => {});
+        appendLog(entryFrom(itemId, anchor, state.result, isSlop(state.result))).catch(() => {});
       }
     },
     remove(itemId) { const e = entries.get(itemId); e?.host.remove(); e?.cover?.remove(); entries.delete(itemId); },
@@ -187,7 +189,7 @@ function panel(e: Entry, r: AnalysisResult, shown: Signal[], cb: boolean): strin
   const overall = r.overall && r.overall.level !== "none" ? `<span class="lvl">${r.overall.level} · ${pct(r.overall.score)}</span>` : "";
   const status = isLive
     ? (r.partial ? `<span class="live"><i></i>LIVE</span>` : `<span class="t">DONE</span>`) + `<span class="t">${mmss(tl.length ? tl[tl.length - 1]!.t : (Date.now() - e.liveStart!) / 1000)}</span>`
-    : `<span class="t">${r.signals.length} signals · ${r.latencyMs} ms</span>`;
+    : `<span class="t">${r.signals.length} signals · ${r.source} · ${r.latencyMs} ms</span>`;
   // the AI's own timeline (t = seconds since video start) beats our derived log
   const events = tl.length ? tl : e.log;
   const log = isLive && events.length ? `<div class="sec">Timeline</div><div class="log">${events.map((l) => logLine(l, cb)).join("")}</div>` : "";

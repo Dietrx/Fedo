@@ -3,14 +3,14 @@
  * No contract change needed: the popup and the overlay share them without going through the background.
  * Everything is guarded so the playground (no `chrome`) still works.
  */
-import type { Group } from "./theme";
+import type { AnyGroup } from "./theme";
 import type { ThemePref } from "./theme";
 
 export interface UiPrefs { theme: ThemePref; colorBlind: boolean; /** cover posts that look like mass-produced AI content */ slopCover: boolean }
-export interface Stats { analyzed: number; withSignals: number; byGroup: Record<Group, number> }
+export interface Stats { analyzed: number; withSignals: number; byGroup: Record<AnyGroup, number> }
 
 export const DEFAULT_PREFS: UiPrefs = { theme: "system", colorBlind: false, slopCover: true };
-export const EMPTY_STATS: Stats = { analyzed: 0, withSignals: 0, byGroup: { political: 0, rhetoric: 0, credibility: 0, synthetic: 0 } };
+export const EMPTY_STATS: Stats = { analyzed: 0, withSignals: 0, byGroup: { political: 0, rhetoric: 0, credibility: 0, synthetic: 0, other: 0 } };
 
 const PREFS_KEY = "fedo.ui.prefs";
 const STATS_KEY = "fedo.ui.stats";
@@ -36,13 +36,13 @@ export async function loadStats(): Promise<Stats> {
   const raw = got[STATS_KEY] as Partial<Stats> | undefined;
   return { ...EMPTY_STATS, ...raw, byGroup: { ...EMPTY_STATS.byGroup, ...raw?.byGroup } };
 }
-export async function bumpStats(withSignals: boolean, group?: Group): Promise<void> {
+export async function bumpStats(withSignals: boolean, group?: AnyGroup): Promise<void> {
   const s = storage();
   if (!s) return;
   const cur = await loadStats();
   cur.analyzed++;
   if (withSignals) cur.withSignals++;
-  if (group) cur.byGroup[group]++;
+  if (group) cur.byGroup[group] = (cur.byGroup[group] ?? 0) + 1;
   await s.set({ [STATS_KEY]: cur });
 }
 export async function resetStats(): Promise<void> {

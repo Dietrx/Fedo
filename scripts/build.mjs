@@ -18,6 +18,7 @@ rmSync("dist", { recursive: true, force: true });
 mkdirSync("dist", { recursive: true });
 cpSync("extension/manifest.json", "dist/manifest.json");
 cpSync("ui/popup/popup.html", "dist/popup.html");
+cpSync("ui/dashboard/dashboard.html", "dist/dashboard.html");
 
 const common = {
   bundle: true,
@@ -33,6 +34,7 @@ const builds = [
   // scraper's MAIN-world script (page world, see extension/manifest.json content_scripts[0])
   { ...common, entryPoints: ["scraper/main-world.ts"], outfile: "dist/main-world.js", format: "iife" },
   { ...common, entryPoints: ["ui/popup/popup.ts"], outfile: "dist/popup.js", format: "iife" },
+  { ...common, entryPoints: ["ui/dashboard/dashboard.ts"], outfile: "dist/dashboard.js", format: "iife" },
 ];
 
 console.log(`[fedo] analyzer mode: ${mode}`);
