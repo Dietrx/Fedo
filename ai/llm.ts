@@ -59,7 +59,7 @@ export function createLlmAnalyzer(apiUrl: string, apiKey: string): Analyzer {
       try {
         answer = await callModel(endpoint, apiKey, model, buildState(input));
       } catch (e) {
-        console.warn("[fedo:ai] LLM failed → local engine result:", e);
+        console.warn("[fedo:ai] LLM failed → local engine result:", e instanceof Error ? e.message : e);
         return analyzeLocally(input, t0);
       }
 
