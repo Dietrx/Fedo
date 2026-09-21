@@ -10,6 +10,27 @@
 
 ---
 
+## 2026-09-21 · `ai/transcript-sources` · AI · Robust gegen zwei Transkript-Quellen gleichzeitig (Untertitel + STT)
+
+**Was hat sich geändert** (nur `ai/`, baut auf `integrate/video-stt` #16 auf):
+- Im integrierten Stand liefern auf TikTok ZWEI Quellen Text für dasselbe Video: der Scraper (Untertitel-Datei, ggf. Whisper) über
+  `onTranscript` und die Audio-Aufnahme (captureStream → Gemini) über `onAudio`. Im Glue landet beides in einer Liste → alles doppelt,
+  zeitlich durcheinander, und zusätzlich steht der Text noch in `item.captions`.
+- `ai/transcript.ts` räumt auf: sind Untertitel-Chunks da, zählen nur sie (exakt + gratis); sortiert nach Zeit, Doppelte raus;
+  `item.captions` wird dann nicht noch einmal mitgezählt.
+- Auto-Untertitel ohne Satzzeichen werden zu lesbaren Einheiten gruppiert (sonst: ein endloser Satz, leere Timeline).
+- Tests ohne Netzwerk: `npx tsx ai/dev/test-transcript.ts`. Evals 15/15 lokal, 20/20 Jev.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, ↻
+- **Glue/Scraper (bitte absprechen, spart Geld + Latenz):** Wenn für ein Video Untertitel-Chunks kommen, braucht es kein `onAudio`→STT mehr.
+  Vorschlag: im Glue `onAudio` ignorieren, sobald `entry.transcript` einen Chunk mit `source: "captions"` hat. Die AI kommt mit beidem klar,
+  aber aktuell wird jedes untertitelte Video zusätzlich kostenpflichtig transkribiert.
+
+**Wichtig zu wissen:** Zum AI-Abgleich aus #15: `political_content` bleibt der einzige „Thema statt Technik"-Key (SEVERITY 0) → `TOPIC_KEYS` passt.
+
+---
+
 ## 2026-09-21 · `main @ f68c853` · UI · `political_content` = Thema statt Signal (Abgleich mit AI), Lade-Effekte
 
 **Was hat sich geändert:**
