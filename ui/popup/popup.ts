@@ -52,7 +52,7 @@ document.querySelectorAll<HTMLInputElement>('input[name="theme"]').forEach((r) =
 $("colorBlind").addEventListener("change", async (e) => applyTheme(await savePrefs({ colorBlind: (e.target as HTMLInputElement).checked })));
 $("slopCover").addEventListener("change", async (e) => applyTheme(await savePrefs({ slopCover: (e.target as HTMLInputElement).checked })));
 $("reset").addEventListener("click", () => resetStats());
-$("open").addEventListener("click", () => chrome.tabs.create({ url: "https://x.com/home" }));
+$("open").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html") }));
 onStorageChange((c) => { if (c.stats) renderStats(c.stats); });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", async () => applyTheme(await loadPrefs()));
 

@@ -8,6 +8,7 @@
  */
 import { DEFAULT_SETTINGS, SIGNALS, type AnalysisResult, type OverlayRenderer, type OverlayState, type Signal } from "@contracts";
 import { loadPrefs, onStorageChange, bumpStats, DEFAULT_PREFS, type UiPrefs } from "./prefs";
+import { appendLog, entryFrom } from "./log";
 import { GLYPH, groupOf, hostIsDark, resolveTheme, type ThemeId } from "./theme";
 import { OVERLAY_CSS } from "./styles";
 
@@ -94,6 +95,7 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
         e.counted = true;
         const shown = visible(state.result, minScore);
         bumpStats(shown.length > 0, shown[0] ? groupOf(shown[0].key) : undefined).catch(() => {});
+        appendLog(entryFrom(itemId, anchor, state.result, isSlop(state.result))).catch(() => {});
       }
     },
     remove(itemId) { const e = entries.get(itemId); e?.host.remove(); e?.cover?.remove(); entries.delete(itemId); },
