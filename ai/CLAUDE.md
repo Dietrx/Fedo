@@ -14,3 +14,6 @@ Aufgabe: `AnalysisInput` → `AnalysisResult` (Scores 0..1 pro Signal aus contra
 - `explain.ts`: neutraler „Why am I seeing this?“-Text
 - `mock.ts`: Offline-Analyzer = lokale Engine. `jev.ts`: Jev-Scores + lokale Evidence, Fallback auf lokal bei Fehler
 - Regressionstests: `npx tsx ai/dev/eval.ts` (Fälle in `ai/dev/cases.ts`). Falsch bewerteter Post → Fall ergänzen, dann Lexikon anpassen
+- `llm.ts`: echtes Sprachmodell über OpenAI-kompatible API (OpenRouter). Aktiv, wenn in `.env` steht:
+  `FEDO_ANALYZER=jev`, `JEV_API_URL=https://openrouter.ai/api/v1/chat/completions`, `JEV_API_KEY=sk-or-...`
+  (Modell wechseln: `...#google/gemini-2.5-flash` an die URL hängen). Fehler/Timeout → lokale Engine.
