@@ -10,6 +10,23 @@
 
 ---
 
+## 2026-09-21 · `contracts/timeline` · Contracts (AI → UI) · Neues optionales Feld `AnalysisResult.timeline` für Videos
+
+**Was hat sich geändert:**
+- `contracts/types.ts`: `AnalysisResult.timeline?: TimelineEvent[]` mit `{ t, key, score, evidence? }`
+  = erkannte Techniken im gesprochenen Text mit Zeitstempel (Sekunden), chronologisch. Wächst, während das Video läuft.
+- `contracts/fixtures.ts`: Ergebnis zu `tiktok:2001` hat eine Beispiel-Timeline.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`
+- **UI-Dev:** für die Live-Video-Ansicht nutzbar („00:04 ⚠ Fear framing“): `SIGNALS[event.key].label` + `event.t` formatieren.
+  Feld ist optional → bei Posts und bei `undefined` nichts anzeigen.
+- Scraper-Dev: `TranscriptChunk.t` (Sekunden seit Videostart) sauber setzen, daraus entstehen die Zeitstempel.
+
+**Wichtig zu wissen:** Kein Breaking Change (Feld ist optional).
+
+---
+
 ## 2026-09-21 · `ai/llm-openrouter` · AI · Echte Analyse mit Jev (TypeSafe) über OpenRouter
 
 **Was hat sich geändert:**

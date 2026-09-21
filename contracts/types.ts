@@ -91,6 +91,16 @@ export interface OverallIntensity {
   score: number;
 }
 
+/** One moment in a video where a technique was detected in the spoken text ("00:04 Fear framing"). */
+export interface TimelineEvent {
+  /** seconds since the video started (from TranscriptChunk.t) */
+  t: number;
+  key: SignalKey;
+  score: number;
+  /** the spoken words that triggered it */
+  evidence?: string;
+}
+
 export interface AnalysisResult {
   itemId: string;
   /** Overall level for a badge per post. Optional: older/partial results may not have it → UI must handle `undefined`. */
@@ -99,6 +109,8 @@ export interface AnalysisResult {
   signals: Signal[];
   /** 1–2 neutral sentences for "Why am I seeing this?" */
   explanation?: string;
+  /** Videos only: detected techniques in chronological order. Grows while the video plays. Optional → UI must handle `undefined`. */
+  timeline?: TimelineEvent[];
   /** true while a video is still being analyzed live (more results will follow) */
   partial?: boolean;
   source: "mock" | "jev" | "vision" | "combined";
