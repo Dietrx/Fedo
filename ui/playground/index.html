@@ -4,11 +4,15 @@
     <meta charset="utf-8" />
     <title>Fedo UI Playground</title>
     <style>
-      body { margin: 0; background: #000; color: #e7e9ea; font: 15px/1.4 system-ui, sans-serif; }
-      main { max-width: 600px; margin: 0 auto; border-inline: 1px solid #2f3336; }
-      header { padding: 12px 16px; border-bottom: 1px solid #2f3336; display: flex; gap: 8px; align-items: center; }
-      header h1 { font-size: 18px; margin: 0 auto 0 0; }
-      header button { background: #1d9bf0; color: #fff; border: 0; border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+      body { margin: 0; background: #000; color: #e7e9ea; font: 15px/1.4 -apple-system, system-ui, sans-serif; transition: background .2s; }
+      body.light { background: #fff; color: #0f1419; }
+      body.light main { border-color: #eff3f4; } body.light article, body.light header { border-color: #eff3f4; }
+      main { max-width: 600px; margin: 0 auto; border-inline: 1px solid #2f3336; min-height: 100vh; }
+      header { position: sticky; top: 0; z-index: 1; padding: 12px 16px; border-bottom: 1px solid #2f3336; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: inherit; }
+      header h1 { font-size: 16px; margin: 0 auto 0 0; }
+      header button, header select { background: #1d9bf0; color: #fff; border: 0; border-radius: 999px; padding: 6px 12px; cursor: pointer; font: inherit; font-size: 13px; }
+      header select { background: #2f3336; } body.light header select { background: #eff3f4; color: #0f1419; }
+      header label { font-size: 13px; display: flex; gap: 4px; align-items: center; }
       article { padding: 12px 16px; border-bottom: 1px solid #2f3336; }
       .author { font-weight: 700; } .handle { color: #71767b; font-weight: 400; }
       .text { margin: 4px 0; white-space: pre-wrap; }
@@ -19,7 +23,14 @@
     <main>
       <header>
         <h1>Fedo UI Playground</h1>
-        <button id="replay">Replay (pending → done)</button>
+        <select id="theme" title="Theme">
+          <option value="light">Light</option>
+          <option value="dark" selected>Dark</option>
+          <option value="light-cb">Light · colour-blind</option>
+          <option value="dark-cb">Dark · colour-blind</option>
+        </select>
+        <label>≥ <input id="min" type="range" min="0.3" max="0.9" step="0.05" value="0.5" style="width:80px" /><span id="minv">50%</span></label>
+        <button id="replay">Replay</button>
         <button id="live">Simulate live video</button>
       </header>
       <div id="feed"></div>
