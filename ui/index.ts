@@ -3,16 +3,19 @@
  * Contract: render(itemId, anchor, OverlayState) — see contracts/modules.ts.
  * Everything lives inside a Shadow DOM, so X/TikTok CSS can't leak in and ours can't leak out.
  */
-import { DEFAULT_SETTINGS, SIGNALS, type OverlayRenderer, type OverlayState, type Signal } from "@contracts";
+import { DEFAULT_SETTINGS, RESEARCH, SIGNALS, type AnalysisResult, type OverlayRenderer, type OverlayState, type Signal } from "@contracts";
 import { OVERLAY_CSS } from "./styles";
 
 export interface OverlayOptions {
   minScore?: number;
+  /** Dim (never hide) posts with overall level "high"; the reader can always reveal them. */
+  calmMode?: boolean;
 }
 
 export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
   const minScore = opts.minScore ?? DEFAULT_SETTINGS.minScore;
-  const hosts = new Map<string, { host: HTMLElement; root: ShadowRoot; expanded: boolean }>();
+  const calmMode = opts.calmMode ?? false;
+  const hosts = new Map<string, { host: HTMLElement; root: ShadowRoot; expanded: boolean; revealed: boolean }>();
 
   function mount(itemId: string, anchor: HTMLElement) {
     let entry = hosts.get(itemId);
@@ -24,49 +27,80 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
     for (const ev of ["click", "mousedown", "pointerdown"]) host.addEventListener(ev, (e) => e.stopPropagation());
     const root = host.attachShadow({ mode: "open" });
     anchor.appendChild(host);
-    entry = { host, root, expanded: false };
+    entry = { host, root, expanded: false, revealed: false };
     hosts.set(itemId, entry);
     return entry;
   }
 
-  return {
+  /** Calm mode: fade the post's own content, keep our bar readable. Undone on reveal / remove / clear. */
+  function dim(anchor: HTMLElement, host: HTMLElement, on: boolean) {
+    for (const child of Array.from(anchor.children) as HTMLElement[]) {
+      if (child === host) continue;
+      child.style.opacity = on ? "0.25" : "";
+      child.style.transition = "opacity .25s";
+    }
+  }
+
+  const renderer: OverlayRenderer = {
     render(itemId, anchor, state) {
       const entry = mount(itemId, anchor);
-      entry.root.innerHTML = `<style>${OVERLAY_CSS}</style>${view(state, minScore, entry.expanded)}`;
+      const dimmed = calmMode && !entry.revealed && state.status === "done" && state.result.overall?.level === "high";
+      dim(anchor, entry.host, dimmed);
+      entry.root.innerHTML = `<style>${OVERLAY_CSS}</style>${view(state, minScore, entry.expanded, dimmed)}`;
       entry.root.querySelector("[data-toggle]")?.addEventListener("click", () => {
         entry.expanded = !entry.expanded;
-        this.render(itemId, anchor, state);
+        renderer.render(itemId, anchor, state);
+      });
+      entry.root.querySelector("[data-reveal]")?.addEventListener("click", () => {
+        entry.revealed = true;
+        renderer.render(itemId, anchor, state);
       });
     },
     remove(itemId) {
-      hosts.get(itemId)?.host.remove();
+      const entry = hosts.get(itemId);
+      if (entry?.host.parentElement) dim(entry.host.parentElement, entry.host, false);
+      entry?.host.remove();
       hosts.delete(itemId);
     },
     clear() {
-      hosts.forEach((e) => e.host.remove());
-      hosts.clear();
+      for (const id of Array.from(hosts.keys())) renderer.remove(id);
     },
   };
+  return renderer;
 }
 
-function view(state: OverlayState, minScore: number, expanded: boolean): string {
+function view(state: OverlayState, minScore: number, expanded: boolean, dimmed: boolean): string {
   if (state.status === "pending") return `<div class="bar pending"><span class="dot"></span>Analyzing…</div>`;
   if (state.status === "error") return `<div class="bar error">Analysis unavailable</div>`;
 
   const { result } = state;
+  // No verdict without enough text: a green check here would be a false "clean".
+  if (result.coverage === "insufficient") return `<div class="bar muted">– Not enough text to assess</div>`;
+
   const shown = result.signals.filter((s) => s.score >= minScore).sort((a, b) => b.score - a.score);
-  if (!shown.length) return `<div class="bar clean">✓ No strong manipulation signals</div>`;
+  const textOnly = result.coverage === "text_only" ? `<span class="tag" title="Images and video are not analyzed yet">text only</span>` : "";
+  if (!shown.length) return `<div class="bar clean">✓ No strong manipulation signals in the text ${textOnly}</div>`;
 
   const chips = shown.slice(0, 3).map(chip).join("");
   const more = shown.length > 3 ? `<span class="more">+${shown.length - 3}</span>` : "";
   const live = result.partial ? `<span class="live">LIVE</span>` : "";
+  const reveal = dimmed ? `<button data-reveal class="why">Show post</button>` : "";
 
   return `
     <div class="bar">
-      ${live}${chips}${more}
-      <button data-toggle class="why">${expanded ? "Hide" : "Why?"}</button>
+      ${live}${badge(result)}${chips}${more}${textOnly}
+      <span class="actions">${reveal}<button data-toggle class="why">${expanded ? "Hide" : "Why?"}</button></span>
     </div>
     ${expanded ? details(shown, result.explanation) : ""}`;
+}
+
+/** Overall intensity per post (from `result.overall`, optional in the contract). */
+function badge(result: AnalysisResult): string {
+  const o = result.overall;
+  if (!o || o.level === "none") return "";
+  const cls = o.level === "high" ? "high" : o.level === "medium" ? "mid" : "low";
+  const label = o.level === "high" ? "High" : o.level === "medium" ? "Medium" : "Low";
+  return `<span class="badge ${cls}" title="How heavily persuasion techniques are used overall (${pct(o.score)}). Not a truth or intent rating.">${label}</span>`;
 }
 
 function chip(s: Signal): string {
@@ -85,11 +119,13 @@ function details(signals: Signal[], explanation?: string): string {
       </div>`,
     )
     .join("");
+  const research = signals.map((s) => RESEARCH[s.key]).find(Boolean);
   return `
     <div class="panel">
       ${explanation ? `<p class="explain">${esc(explanation)}</p>` : ""}
       ${rows}
-      <p class="note">Signals describe persuasion techniques, not whether an opinion is right.</p>
+      ${research ? `<p class="research">Research: ${esc(research)}</p>` : ""}
+      <p class="note">Signals describe persuasion techniques, not whether an opinion is right. Nothing is ever hidden from you.</p>
     </div>`;
 }
 

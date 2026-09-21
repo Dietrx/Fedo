@@ -4,18 +4,97 @@
     <meta charset="utf-8" />
     <title>Fedo</title>
     <style>
-      body { margin: 0; width: 260px; padding: 16px; font: 13px/1.4 system-ui, sans-serif; background: #15181c; color: #e7e9ea; }
-      h1 { font-size: 16px; margin: 0 0 12px; }
-      label { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; }
-      input[type="range"] { width: 110px; }
-      .hint { color: #8b98a5; font-size: 12px; margin-top: 12px; }
+      :root {
+        color-scheme: dark;
+        --surface: #15181c; --surface-2: #1e2329; --line: rgba(255,255,255,.09);
+        --text: #e7e9ea; --text-2: #8b98a5; --text-3: #71767b; --accent: #1d9bf0;
+        /* ordinal ramp for intensity levels, validated on --surface: light → dark = low → high */
+        --none: #6e7a86; --low: #ffd400; --medium: #f28a1e; --high: #f4384a;
+        --bar: #3987e5;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; width: 360px; padding: 14px 16px 12px; font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--surface); color: var(--text); }
+      h1 { font-size: 16px; margin: 0; display: flex; align-items: center; gap: 8px; }
+      h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); margin: 18px 0 8px; }
+      .top { display: flex; align-items: center; justify-content: space-between; }
+      .switch { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); cursor: pointer; white-space: nowrap; }
+      .switch input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+      .tabs { display: flex; gap: 4px; margin-top: 12px; background: var(--surface-2); border-radius: 8px; padding: 3px; }
+      .tabs button { flex: 1; border: 0; background: none; color: var(--text-2); font: inherit; font-size: 12px; padding: 5px 0; border-radius: 6px; cursor: pointer; }
+      .tabs button[aria-selected="true"] { background: var(--surface); color: var(--text); }
+      .hero { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+      .hero .n { font-size: 32px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+      .hero .l { color: var(--text-2); font-size: 12px; margin-top: 4px; }
+      .empty { color: var(--text-2); padding: 18px 0 6px; line-height: 1.5; }
+      .diet { display: flex; align-items: center; gap: 16px; }
+      .diet svg { flex: none; }
+      .legend { display: grid; gap: 5px; font-variant-numeric: tabular-nums; flex: 1; }
+      .legend div { display: grid; grid-template-columns: 10px 1fr auto auto; gap: 8px; align-items: center; }
+      .legend i { width: 10px; height: 10px; border-radius: 2px; display: block; }
+      .legend .pct { color: var(--text-2); min-width: 34px; text-align: right; }
+      .bars { display: grid; gap: 6px; }
+      .bar { display: grid; grid-template-columns: 128px 1fr 36px; gap: 8px; align-items: center; }
+      .bar .label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .bar .track { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+      .bar .fill { display: block; height: 100%; background: var(--bar); border-radius: 0 4px 4px 0; min-width: 2px; }
+      .bar .val { text-align: right; color: var(--text-2); font-variant-numeric: tabular-nums; }
+      .sources { display: grid; gap: 6px; }
+      .src { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; background: var(--surface-2); border-radius: 8px; }
+      .src .h { font-weight: 600; }
+      .src .m { color: var(--text-2); font-size: 12px; }
+      .src a { color: var(--accent); text-decoration: none; font-size: 12px; }
+      .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 8px 0; }
+      .seg { display: inline-flex; background: var(--surface-2); border-radius: 6px; padding: 2px; }
+      .seg button { border: 0; background: none; color: var(--text-2); font: inherit; font-size: 12px; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
+      .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); }
+      .hint { color: var(--text-3); font-size: 11px; margin: -4px 0 0; }
+      .actions { display: flex; gap: 8px; margin-top: 12px; }
+      .actions button { flex: 1; border: 1px solid var(--line); background: none; color: var(--text-2); font: inherit; font-size: 12px; padding: 6px; border-radius: 6px; cursor: pointer; }
+      .actions button:hover { color: var(--text); border-color: var(--text-2); }
+      .foot { color: var(--text-3); font-size: 11px; margin: 12px 0 0; line-height: 1.45; }
     </style>
   </head>
   <body>
-    <h1>🛡️ Fedo Shield</h1>
-    <label>Enabled <input id="enabled" type="checkbox" /></label>
-    <label>Sensitivity <input id="minScore" type="range" min="0.3" max="0.9" step="0.05" /></label>
-    <p class="hint">Reload the feed tab after changing settings.</p>
+    <div class="top">
+      <h1>🛡️ Fedo Shield</h1>
+      <label class="switch"><input id="enabled" type="checkbox" /> On</label>
+    </div>
+
+    <div class="tabs" role="tablist" id="tabs">
+      <button role="tab" data-window="session">Session</button>
+      <button role="tab" data-window="today">Today</button>
+      <button role="tab" data-window="7d">7 days</button>
+      <button role="tab" data-window="all">All</button>
+    </div>
+
+    <div id="dash"></div>
+
+    <h2>Settings</h2>
+    <div class="row">
+      <span>Sensitivity</span>
+      <span class="seg" id="sensitivity">
+        <button data-min="0.35">Show all</button>
+        <button data-min="0.5">Balanced</button>
+        <button data-min="0.7">Strong only</button>
+      </span>
+    </div>
+    <div class="row">
+      <label class="switch"><input id="calm" type="checkbox" /> Calm mode</label>
+      <span class="hint">dims high-intensity posts, never hides them</span>
+    </div>
+    <div class="row">
+      <span>Analysis</span>
+      <span class="seg" id="mode">
+        <button data-mode="local">Local only</button>
+        <button data-mode="cloud">Cloud (Jev)</button>
+      </span>
+    </div>
+    <p class="hint" id="modeHint"></p>
+    <div class="actions">
+      <button id="export">Export my data</button>
+      <button id="reset">Reset statistics</button>
+    </div>
+    <p class="foot">Counts every post analyzed in this browser once. Signals describe persuasion techniques, not whether an opinion is right. Statistics never leave your device.</p>
     <script src="popup.js"></script>
   </body>
 </html>

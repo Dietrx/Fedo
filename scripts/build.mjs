@@ -4,7 +4,7 @@
  * Then: chrome://extensions → Developer mode → "Load unpacked" → select dist/
  */
 import * as esbuild from "esbuild";
-import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { loadEnv } from "./env.mjs";
 
 const args = process.argv.slice(2);
@@ -16,7 +16,10 @@ const config = { mode, jevApiUrl: env.JEV_API_URL || undefined, jevApiKey: env.J
 
 rmSync("dist", { recursive: true, force: true });
 mkdirSync("dist", { recursive: true });
-cpSync("extension/manifest.json", "dist/manifest.json");
+// Host permissions: only the analyzer API origin (if any) — never every site.
+const manifest = JSON.parse(readFileSync("extension/manifest.json", "utf8"));
+manifest.host_permissions = config.jevApiUrl ? [new URL(config.jevApiUrl).origin + "/*"] : [];
+writeFileSync("dist/manifest.json", JSON.stringify(manifest, null, 2));
 cpSync("ui/popup/popup.html", "dist/popup.html");
 
 const common = {
