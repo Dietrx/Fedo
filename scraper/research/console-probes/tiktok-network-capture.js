@@ -1,4 +1,4 @@
-// tiktok.com/foryou → DevTools-Konsole. Danach ein paar Videos weiterscrollen (Pfeil runter) und `fedoItems` ansehen.
+// tiktok.com/foryou → DevTools console. Then scroll on a few videos (arrow down) and look at `fedoItems`.
 (() => {
   const items = new Map();
   window.fedoItems = items;

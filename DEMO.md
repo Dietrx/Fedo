@@ -1,33 +1,47 @@
-# DEMO.md — Ablauf, Fallbacks, bekannte Grenzen
+# DEMO.md — run-of-show, fallbacks, known limits
 
-> Für den Pitch. Wer vorführt, liest das vorher einmal komplett.
+> For the pitch. Whoever presents reads this once, completely, beforehand.
 
-## Vorbereitung (10 min vor dem Slot)
-1. `git pull --rebase origin main && npm run build`, in `chrome://extensions` auf ↻.
-2. x.com in einem Tab offen, eingeloggt, Feed auf **Für dich**. Einmal 20 Posts scrollen, damit die Statistik gefüllt ist.
-3. `npm run dev:ui` in einem zweiten Tab (http://localhost:8000) als Fallback und für die Video-Simulation.
-   Vorher ein Video mit klarer Sprache (EN/DE) auf X raussuchen und **einmal mit Ton durchlaufen lassen** — dann sitzt die Leiste beim Vorführen sofort.
-4. Popup einmal öffnen: Zahlen da? Badge auf dem Icon da?
+## Preparation (10 minutes before the slot)
+1. `git pull --rebase origin main && npm run build`, then ↻ in `chrome://extensions` **and reload the x.com tab**
+   (an open tab keeps the old content script and shows "Analysis unavailable").
+2. Popup: **Analysis → Cloud**. After a fresh "Load unpacked" it is back on Local. The footer of the panel tells you
+   which path ran: `jev` / `combined` (= image was read) / `local`.
+3. x.com open in a tab, logged in, feed on **For you**. Scroll about 20 posts so the statistics are filled.
+4. Pick a video with clear speech (EN works best) and **play it once with sound on**. Muted players deliver no audio.
+5. `npm run dev:ui` in a second tab (http://localhost:8000) as the fallback: synthetic posts, "Simulate live video".
+6. OpenRouter credit: check the balance once. With an empty account everything silently falls back to the local engine.
 
-## Ablauf (≈ 4 min)
-| Schritt | Was man sieht | Ein Satz dazu |
+## Run-of-show (about 4 minutes)
+| Step | What you see | One sentence |
 |---|---|---|
-| 1. Scrollen auf x.com | Unter jedem Post erscheint die Leiste: Gesamtstufe + Technik-Chips | „Wir bewerten Techniken, keine Meinungen.“ |
-| 2. „Why?“ auf einem starken Post | Balken, Zitate als Beleg, Research-Zeile | „Jedes Signal hat ein Zitat und eine Studie dahinter.“ |
-| 3. Popup öffnen | **Feed Diet**: Zahl der Posts, Anteil mit starken Techniken, Donut, Top-Techniken, Top-Quellen | „Das kann dir keine Plattform zeigen — und keine über die Plattformgrenze hinweg.“ |
-| 4. Calm Mode einschalten | Starke Posts werden gedimmt, bleiben lesbar („Show post“) | „Zensur entfernt. Fedo fügt Kontext hinzu und versteckt nie etwas.“ |
-| 5. Spiegel-Paar im Playground (optional) | Zwei Posts, gleiche Technik, entgegengesetzte Richtung, gleiche Scores | „Der Detektor ist symmetrisch.“ |
-| 6. Video auf X abspielen (**Ton an**) | Leiste „🎧 0:16 of 0:45 analyzed · full analysis in 34 s“, Scores wachsen, LIVE-Badge, am Ende Zeitleiste „In the video“ im Why-Panel | „Der Browser hört das Video selbst ab, Sprache wird zu Text, jeder Satz wird bewertet — während man schaut.“ Braucht `STT_API_URL`/`STT_API_KEY` in `.env`; ohne: „Simulate live video“ im Playground und **ehrlich sagen**, dass es Simulation ist. |
+| 1. Scroll on x.com | The panel top right follows the post in view: overall level, top techniques with scores | "We describe techniques, not opinions." |
+| 2. A strong post | Bars, the verbatim quote for each technique, tap a technique for its definition and research line | "Every signal comes with the quote that triggered it and a study behind it." |
+| 3. A clean post | "No strong signals", top five in grey | "It does not flag everything. Neutral news and jokes stay clean." |
+| 4. A meme / text in an image | Techniques quoted from the picture, footer says `combined` | "It reads what is written inside the image." |
+| 5. An AI-generated picture | "AI slop" cover with "Show post anyway", Synthetic media signals with the visible reason | "An indication, never proof, and nothing is hidden for good." |
+| 6. Play a video (**sound on**) | "Listening …", scores grow, LIVE badge, at the end a timeline with timestamps | "The browser listens to the video and shows when which technique was used." |
+| 7. Open the dashboard | **Feed Diet**: share of posts with strong techniques, top techniques, top sources | "No platform will show you this about your own feed." |
+| 8. Calm mode | High-intensity posts are dimmed, one click reveals them | "Censorship removes. Fedo adds context and never hides." |
 
-## Fallback-Kette
-- **Jev antwortet nicht** → Popup auf „Local only“ stellen (oder ist Standard). Die lokale Engine liefert dieselben Felder.
-- **x.com-Layout hat sich geändert / keine Leisten** → DevTools-Konsole: `[fedo:scraper]`-Meldungen? Wenn keine: Playground (Schritt 5/6) vorführen, Popup-Statistik bleibt aus der Vorbereitung erhalten.
-- **Popup leer** → Fenster auf „All“ stellen; wenn immer noch leer: Tab neu laden, 10 Posts scrollen.
-- **Extension-Fehler** → `chrome://extensions` → Fehler ansehen → ↻ → Tab neu laden.
+A 20-second screen recording of steps 1, 3, 5 and 6 on the real feed exists as a backup.
 
-## Bekannte Grenzen (nicht verschweigen, wenn gefragt)
-- Nur Text wird bewertet. Bild-/Video-Inhalte nicht (`coverage: text_only`), zu kurze Posts bekommen kein Urteil (`insufficient`).
-- TikTok-Selektoren sind unverifiziert → **auf X vorführen.**
-- Live-Video braucht einen STT-Key (`.env`); ohne ist es nur die Playground-Simulation. Chunks alle 8 s → die erste Bewertung kommt nach ~10–14 s, nicht sofort. Stumme Player liefern kein Audio.
-- Die Statistik zählt *analysierte* Posts (dedupliziert), nicht die tatsächlich *gelesenen* (IntersectionObserver fehlt noch).
-- Lokale Engine = gewichtetes Lexikon EN/DE, keine Ironie-/Negationserkennung. Jev-Modus ist vorbereitet, `callJev()` ist noch Skelett.
+## Fallback chain
+- **Cloud does not answer / no credit** → nothing to do, the local engine answers automatically (`local` in the footer).
+  Tone and image reading are cloud-only, so use the playground for those.
+- **No panel on x.com** → DevTools console: any `[fedo:scraper]` lines? If not, show the playground; the popup statistics
+  from the preparation are still there.
+- **"Analysis unavailable"** → the tab was not reloaded after ↻. Reload it.
+- **Video stays on "Unmute the video…"** → the player is muted; unmute and press play again.
+- **Image was not read** → service worker console (`chrome://extensions` → "Service Worker") shows one line per image:
+  `[fedo:ai] vision x:…`.
+
+## Known limits (do not hide them when asked)
+- Videos: speech plus one still frame. The moving picture itself is not analysed.
+- "Synthetic media signals" is a model noticing typical generator artefacts, capped at 90 %. Not deepfake forensics.
+- Scores appear about 5–10 s behind the video (4 s first audio window, then 8 s windows, plus transcription and scoring).
+- Posts with fewer than four real words get no verdict ("Not enough text to assess").
+- Jev is strongest in English. The local fallback engine is a weighted EN/DE lexicon and cannot read tone or irony.
+- The statistics count *analysed* posts (deduplicated), not posts actually *read*.
+- TikTok is experimental → **present on X.** Logged-out X pages use different markup and are not supported.
+- Calibration rests on a few hundred real posts, which is why the wording is "shows patterns of".

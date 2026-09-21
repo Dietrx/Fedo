@@ -1,5 +1,5 @@
-// Beliebige Seite → DevTools-Konsole. Öffentliche Syndication-API (die X-Embeds nutzen), kein Login nötig.
-(async (id = prompt("Tweet-ID?", "20")) => {
+// Any page → DevTools console. Public syndication API (used by X embeds), no login needed.
+(async (id = prompt("Tweet ID?", "20")) => {
   const token = ((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\.)/g, "");
   const t0 = performance.now();
   const res = await fetch(`https://cdn.syndication.twimg.com/tweet-result?id=${id}&token=${token}`);

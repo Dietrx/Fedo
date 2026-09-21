@@ -1,16 +1,16 @@
-# DevTools-Sonden (ohne Tooling reproduzierbar)
+# DevTools probes (reproducible without tooling)
 
-Jede Datei ist ein Schnipsel zum Einfügen in die **Konsole der DevTools** auf der jeweiligen Seite
-(`F12` → Console → einfügen → Enter). Sie brauchen weder Playwright noch die Extension und zeigen in
-Sekunden, ob ein Datenweg aus `scraper/RESEARCH.md` heute noch so funktioniert.
+Each file is a snippet to paste into the **DevTools console** on the respective page
+(`F12` → Console → paste → Enter). They need neither Playwright nor the extension and show within
+seconds whether a data path from `scraper/RESEARCH.md` still works this way today.
 
-| Datei | Seite | Zeigt |
+| File | Page | Shows |
 |---|---|---|
-| `tiktok-network-capture.js` | tiktok.com/foryou | fängt `item_list`-Antworten ab (ein `fetch`-Wrapper) und listet Items mit Untertitel-Spur, Sprache, Dauer |
-| `tiktok-item-from-fiber.js` | tiktok.com/foryou | liest das Item des gerade spielenden Videos aus dem React-State (der Weg, den `scraper/main-world.ts` nutzt) |
-| `tiktok-captions-fetch.js` | tiktok.com/foryou | holt die WebVTT-Datei des aktiven Videos und zeigt Cues und Latenz |
-| `tiktok-comments.js` | tiktok.com (beliebig) | ruft die Kommentar-API ohne Signatur auf und zeigt die Top-Kommentare |
-| `x-graphql-capture.js` | x.com/home (**eingeloggt**) | fängt GraphQL-Antworten ab und zeigt die Tweet-Entitäten — **der Schritt, der in der Recherche-Sitzung nicht möglich war** |
-| `x-syndication-fetch.js` | beliebig | holt einen Tweet über die öffentliche Syndication-API (kein Login) |
+| `tiktok-network-capture.js` | tiktok.com/foryou | captures `item_list` responses (a `fetch` wrapper) and lists items with subtitle track, language, duration |
+| `tiktok-item-from-fiber.js` | tiktok.com/foryou | reads the item of the currently playing video from the React state (the path that `scraper/main-world.ts` uses) |
+| `tiktok-captions-fetch.js` | tiktok.com/foryou | fetches the WebVTT file of the active video and shows cues and latency |
+| `tiktok-comments.js` | tiktok.com (any page) | calls the comment API without a signature and shows the top comments |
+| `x-graphql-capture.js` | x.com/home (**logged in**) | captures GraphQL responses and shows the tweet entities — **the step that was not possible in the research session** |
+| `x-syndication-fetch.js` | any | fetches a tweet via the public syndication API (no login) |
 
-Alle Sonden sind reine Lesezugriffe im eigenen Browser; sie senden nichts an Dritte.
+All probes are purely read-only accesses in your own browser; they send nothing to third parties.

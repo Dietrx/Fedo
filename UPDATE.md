@@ -1,522 +1,549 @@
-# UPDATE.md — Was ist gerade auf `main`?
+# UPDATE.md — What is on `main` right now?
 
-> **Wofür diese Datei?** Damit jeder im Team sieht, was der aktuellste Stand ist,
-> ohne das Git-Log lesen zu müssen. **Neuester Eintrag steht oben.**
+> **What is this file for?** So that everyone on the team can see what the latest state is
+> without having to read the git log. **The newest entry is at the top.**
 
-**Spielregeln:**
-- Wer auf `main` merged, schreibt oben einen neuen Eintrag dazu.
-- Ein Eintrag beantwortet zwei Fragen: *Was hat sich geändert?* und *Was muss ich jetzt tun?*
-- Neue Einträge oben einfügen, alte nicht umschreiben — die Datei ist auch ein Verlauf.
-
----
-
-## 2026-09-21 · `ai/more-sensitive` · AI · Bewertung empfindlicher: mehr `medium`/`high`
-
-**Was hat sich geändert** (nur `ai/`):
-- Stufen-Schwellen gesenkt (`high` ab 0,78 statt 0,82, `medium` ab 0,48 statt 0,55), weitere Techniken zählen stärker mit, Satz-Plausibilisierung
-  und Humor-Dämpfung etwas lockerer. Gemessen an 328 echten Posts: `high` 3 → 11, `medium` 34 → 36, `low` 106 → 93.
-- **Bewusst NICHT gelockert:** die Fehlalarm-Sperren (zu wenig Text, musterbasierte Signale brauchen lokale Bestätigung). Geprüft: Die Posts knapp unter
-  der Anzeigeschwelle sind fast nur neutrale Meldungen (NYT, Spiegel), Link-Hinweise, Hashtag-only-Posts und Witze. Eine lockerere Variante hat im Test sofort eine
-  neutrale Nachrichtenmeldung auf `medium` gesetzt und einen absurden Witz als „dehumanizing" markiert → verworfen.
-- Evals: 15/15 lokal, 20/20 Jev (zwei Erwartungen angepasst: Beleidigungs-Tweet und sarkastische Regierungskritik dürfen jetzt `high` sein).
-
-**Was musst du tun:**
-- `git pull --rebase origin main`, `npm run build`, ↻, Tab neu laden.
-- **Für die Demo, wenn mehr Chips sichtbar sein sollen:** im Popup den Regler „Sensitivity" nach rechts (zeigt dann schon ab 30–40 % statt ab 50 %). Das ändert nur die Anzeige, nicht die Gesamtstufe.
+**Rules:**
+- Whoever merges into `main` adds a new entry at the top.
+- An entry answers two questions: *What changed?* and *What do I need to do now?*
+- Insert new entries at the top, do not rewrite old ones — the file is also a history.
 
 ---
 
-## 2026-09-21 · `fix/video-finishing` · Scraper (Video) + Glue + AI · Videos bleiben nicht mehr bei „finishing…" hängen, Bild-Posts ohne Text werden abgewartet
+## 2026-09-21 · `chore/jury-ready` · All paths · Repository prepared for the jury: English docs, security audit, anonymised fixture
 
-**Was hat sich geändert:**
-- **„finishing…" für immer (Ursache in `scraper/video.ts`):** Das Ende-Signal (`ended: true`) ging verloren, wenn (1) das letzte Audiostück still oder < 0,5 s war
-  (die meisten Videos enden so), (2) pausiert / weggescrollt wurde (kam als `ended: false`, obwohl der Contract „video ended OR capture stopped" sagt),
-  (3) das Video loopt (TikTok immer, X bei kurzen Clips: `ended` feuert nie, Aufnahme lief bis zum 3-min-Limit), (4) das 3-min-Limit griff.
-  Jetzt geht in all diesen Fällen ein leeres Abschluss-Stück raus; ein Zeitsprung rückwärts zählt als Ende.
-- **Glue (`extension/src/content.ts`):** kein Countdown ohne bekannte Videolänge (lief nach 6 s auf „finishing…"); eine noch laufende Transkription
-  kann ein bereits beendetes Video nicht wieder auf „Listening" setzen (`entry.closed`).
-- **Schneller:** erstes Audiofenster 4 s statt 8 s → erste Scores nach ~5–6 s statt ~10 s.
-- **AI:** Posts, die NUR aus einem Bild bestehen, warten jetzt voll auf die Bilderkennung (vorher nach 4 s „Not enough text to assess"). Dazu Diagnose
-  im Service-Worker-Log: `[fedo:ai] vision x:123: 1 image(s), 83 words in image, synthetic 0.1 (1437 ms)` bzw. `… no answer after … ms` / `… skipped, no fetchable image URL`.
+**What changed:**
+- **Everything is in English now:** `README.md` (rewritten for a reader who has never seen the project), `DEMO.md` (rewritten, limits updated),
+  `START_HERE.md`, `UPDATE.md`, all `CLAUDE.md` files, `scraper/RESEARCH.md` and the console probes (translated 1:1, facts untouched).
+  German remains only where it is data: `ai/lexicon.ts` patterns and German test cases.
+- **Security audit of the full git history (all branches):** no API key, token, cookie, `.env` or `dist/` was ever committed.
+- **`scraper/test/fixtures/tiktok-capture.json` anonymised:** real creator handles, nicknames, account id and 21 signed CDN URLs replaced.
+  Field names and structure are unchanged, the 17 scraper tests pass before and after.
+- `docs/overview.jpg`: README screenshot taken from the UI playground (synthetic posts only). `.gitignore`: `brag-output/`.
+- Outdated facts fixed: `START_HERE.md` no longer calls `jev.ts` a skeleton; `DEMO.md` no longer says "text only".
 
-**Was musst du tun:**
-- `git pull --rebase origin main`, `npm run build`, in chrome://extensions ↻ **und danach den X/TikTok-Tab neu laden** (sonst „Analysis unavailable": das alte
-  Content-Script hat keine Verbindung mehr zum neu geladenen Worker).
-- **Popup prüfen: Analysis = Cloud.** In „Local" gibt es bewusst keine Bilderkennung und kein Jev. Nach „Load unpacked" steht es wieder auf Local.
-- **UI-Dev / Scraper-Dev: bitte drüberschauen**, die Änderungen in `scraper/video.ts` und `content.ts` kamen vom AI-Dev und sind nur im Browser prüfbar.
+**What you need to do:**
+- `git pull --rebase origin main`. If you have local edits in one of the translated files, expect a conflict there: keep the English version and re-apply your change.
+- New `UPDATE.md` entries in English, please.
+- **Noah:** your glue fix `94c294e` (keep the overlay alive on settings change) is still only on `integrate/video-stt`, not on `main`.
+
+**Good to know:** commit author e-mail addresses are public in the git metadata of a public repository. Changing that would mean rewriting history, which we did not do.
 
 ---
 
-## 2026-09-21 · `ui/card-top5-apple` · UI · Karte oben rechts standardmäßig offen, Top-5-Balken auch bei sauberen Posts, ruhigerer Look; Dashboard zieht mit
+## 2026-09-21 · `ai/more-sensitive` · AI · More sensitive scoring: more `medium`/`high`
 
-**Was hat sich geändert** (nur `ui/`, direkt auf `main` gepusht – Entscheidung Franz, Zeitdruck vor der Demo; **Noah, bitte einmal drüberschauen**):
-- **Karte oben rechts ist von allein aufgeklappt.** Zuklappen (Pfeil oben rechts) gilt für alle folgenden Posts bis zum Neuladen der Seite (wird nicht gespeichert).
-- **Immer ein Ranking der fünf stärksten Techniken als Balken** – auch bei „No strong signals", dann klein und grau (z. B. 2 %). „Show all 14" zeigt den Rest.
-  Unter der Schwelle = grau und **zählt weiterhin nirgends** (`visible()`, `bumpStats`, Log-Zählung, Strip-Labels, Slop-Cover unverändert; Dashboard-Kennzahlen identisch).
-- **„Not enough text to assess" zeigt bewusst KEINE Balken** (Contract: bei `coverage: "insufficient"` nie sauber wirken).
-- **Antippen einer Technik** klappt auf, was sie bedeutet (`SIGNALS[key].description`) und die Forschungszeile (`RESEARCH` aus `contracts/signals.ts`, bisher ungenutzt).
-- **Look:** Gesamtstufe als Titel + ein neutraler Gesamt-Balken + ein Satz („Persuasion techniques · 2 of 14 above 50%"), Serifenlose für Text, Mono nur für Zahlen,
-  ein Zuklapp-Knopf statt zwei, `local · 4 ms` klein im Fuß, Karte 340 px. Tags (Topic, text only, Countdown, „Dimmed · Show") stehen neben dem Autor.
-  Video-Fortschritt, ETA, Calm mode, Live-Timeline, Slop-Cover, vier Themes: funktional unverändert.
-- **`ui/log.ts`:** speichert je Post die gerankten Top 5 unabhängig vom Score (vorher: nur ≥ 30 %) → die Dashboard-Seite zeigt dieselben Balken. Alte Einträge bleiben, wie sie sind.
-- **Dashboard-Seite:** gleiche Zeilen-Optik (Rang, grau unter 50 %), kein Punktraster-Hintergrund, keine Eck-Klammern, weniger Großbuchstaben-Mono.
-- **Neu: erste UI-Tests** `ui/test/pin.test.ts` (10 Tests, ohne DOM): `node --import tsx --test ui/test/*.test.ts`.
+**What changed** (`ai/` only):
+- Level thresholds lowered (`high` from 0.78 instead of 0.82, `medium` from 0.48 instead of 0.55), further techniques count more strongly, sentence plausibility check
+  and humor dampening slightly looser. Measured on 328 real posts: `high` 3 → 11, `medium` 34 → 36, `low` 106 → 93.
+- **Deliberately NOT loosened:** the false-alarm guards (too little text, pattern-based signals need local confirmation). Checked: the posts just below
+  the display threshold are almost only neutral news reports (NYT, Spiegel), link pointers, hashtag-only posts and jokes. A looser variant immediately set a
+  neutral news report to `medium` in the test and marked an absurd joke as "dehumanizing" → discarded.
+- Evals: 15/15 local, 20/20 Jev (two expectations adjusted: the insult tweet and the sarcastic government criticism may now be `high`).
 
-**Was musst du tun:**
+**What you need to do:**
+- `git pull --rebase origin main`, `npm run build`, ↻, reload the tab.
+- **For the demo, if more chips should be visible:** in the popup move the "Sensitivity" slider to the right (it then shows from 30–40 % instead of from 50 %). This only changes the display, not the overall level.
+
+---
+
+## 2026-09-21 · `fix/video-finishing` · Scraper (Video) + Glue + AI · Videos no longer get stuck at "finishing…", image posts without text are waited for
+
+**What changed:**
+- **"finishing…" forever (cause in `scraper/video.ts`):** The end signal (`ended: true`) got lost when (1) the last audio piece was silent or < 0.5 s
+  (most videos end like that), (2) the video was paused / scrolled away (arrived as `ended: false`, although the contract says "video ended OR capture stopped"),
+  (3) the video loops (TikTok always, X for short clips: `ended` never fires, the recording ran until the 3-min limit), (4) the 3-min limit kicked in.
+  Now an empty closing piece goes out in all of these cases; a time jump backwards counts as the end.
+- **Glue (`extension/src/content.ts`):** no countdown without a known video length (it ran to "finishing…" after 6 s); a transcription that is still running
+  can no longer set an already finished video back to "Listening" (`entry.closed`).
+- **Faster:** first audio window 4 s instead of 8 s → first scores after ~5–6 s instead of ~10 s.
+- **AI:** Posts that consist ONLY of an image now fully wait for the image recognition (previously "Not enough text to assess" after 4 s). Plus diagnostics
+  in the service worker log: `[fedo:ai] vision x:123: 1 image(s), 83 words in image, synthetic 0.1 (1437 ms)` or `… no answer after … ms` / `… skipped, no fetchable image URL`.
+
+**What you need to do:**
+- `git pull --rebase origin main`, `npm run build`, ↻ in chrome://extensions **and then reload the X/TikTok tab** (otherwise "Analysis unavailable": the old
+  content script no longer has a connection to the reloaded worker).
+- **Check the popup: Analysis = Cloud.** In "Local" there is deliberately no image recognition and no Jev. After "Load unpacked" it is back on Local.
+- **UI dev / Scraper dev: please take a look**, the changes in `scraper/video.ts` and `content.ts` came from the AI dev and can only be verified in the browser.
+
+---
+
+## 2026-09-21 · `ui/card-top5-apple` · UI · Top-right card open by default, top-5 bars on clean posts too, calmer look; dashboard follows suit
+
+**What changed** (`ui/` only, pushed directly to `main` – Franz's decision, time pressure before the demo; **Noah, please take a look**):
+- **The top-right card is expanded on its own.** Collapsing it (arrow at the top right) applies to all following posts until the page is reloaded (it is not saved).
+- **Always a ranking of the five strongest techniques as bars** – also for "No strong signals", then small and grey (e.g. 2 %). "Show all 14" shows the rest.
+  Below the threshold = grey and **still counts nowhere** (`visible()`, `bumpStats`, log counting, strip labels, slop cover unchanged; dashboard metrics identical).
+- **"Not enough text to assess" deliberately shows NO bars** (contract: with `coverage: "insufficient"` never look clean).
+- **Tapping a technique** expands what it means (`SIGNALS[key].description`) and the research line (`RESEARCH` from `contracts/signals.ts`, unused until now).
+- **Look:** overall level as the title + one neutral overall bar + one sentence ("Persuasion techniques · 2 of 14 above 50%"), sans-serif for text, mono only for numbers,
+  one collapse button instead of two, `local · 4 ms` small in the footer, card 340 px. Tags (Topic, text only, countdown, "Dimmed · Show") sit next to the author.
+  Video progress, ETA, Calm mode, live timeline, slop cover, four themes: functionally unchanged.
+- **`ui/log.ts`:** stores the ranked top 5 per post regardless of the score (previously: only ≥ 30 %) → the dashboard page shows the same bars. Old entries stay as they are.
+- **Dashboard page:** same row look (rank, grey below 50 %), no dot-grid background, no corner brackets, less uppercase mono.
+- **New: first UI tests** `ui/test/pin.test.ts` (10 tests, without DOM): `node --import tsx --test ui/test/*.test.ts`.
+
+**What you need to do:**
 - `git pull --rebase origin main`, `npm run build`, ↻ in chrome://extensions.
-- **Noah:** falls du parallel an `ui/index.ts` sitzt – `renderView()`/`panel()`/`row()` sind umgebaut (neuer Parameter `ViewCtx`), die Klick-Verdrahtung liegt jetzt in `wire()`.
-  Dein Glue-Fix `94c294e` (Overlay bei Settings-Änderung nicht neu erzeugen) ist noch nicht auf `main`; ohne ihn geht der „zugeklappt"-Zustand bei jeder Popup-Änderung verloren.
-- **AI-Dev:** nichts. Idee für später (rein additiv): `overall.drivers` mit den Anteilen je Technik, dann kann die Karte die Gesamtzahl exakt vorrechnen.
+- **Noah:** in case you are working on `ui/index.ts` in parallel – `renderView()`/`panel()`/`row()` have been restructured (new parameter `ViewCtx`), the click wiring now lives in `wire()`.
+  Your glue fix `94c294e` (do not recreate the overlay on settings changes) is not on `main` yet; without it the "collapsed" state is lost on every popup change.
+- **AI dev:** nothing. Idea for later (purely additive): `overall.drivers` with the shares per technique, then the card can show exactly how the overall number adds up.
 
-**Wichtig zu wissen:** Auf einem völlig sauberen Post stehen alle Werte auf dem Mindestwert → die fünf gezeigten Zeilen sind dann immer dieselben ersten fünf (feste Reihenfolge, damit nichts springt).
-Kontraste aller neuen Texte in allen vier Themes gemessen (≥ 4,5:1), Klickflächen ≥ 24 px; Hover-Farben nur aus den Tokens gerechnet, nicht mit echtem Zeiger gemessen.
-
----
-
-## 2026-09-21 · `ai/faster-media` · AI + Scraper (X) · Bilder werden jetzt zuverlässig erkannt, Bild + Speech-to-Text ~2,5× schneller
-
-**Was hat sich geändert:**
-- **Ursache für „Bilder werden nur manchmal erkannt" (Scraper, `scraper/platforms/x.ts`):** X fügt `<img>`/`<video>` erst ein, wenn das Medium geladen ist,
-  und der GraphQL-Replay für die erste Bildschirmseite kommt einen Moment NACH dem ersten Scan. Der Post wurde sofort gelesen → oft `media: []` → die AI
-  wusste nichts vom Bild. Jetzt: Hat ein Post sichtbar einen Medien-Container, aber weder GraphQL-Datensatz noch Element, wird bis zu 2,5 s (alle 250 ms)
-  nachgesehen, bevor `onItem` kommt. Posts ohne Medien und Posts mit GraphQL-Datensatz sind unverändert sofort da.
-- **Schneller (gemessen, je 3–4 Läufe):** Bild 2,4–4,2 s → 0,9–1,9 s, Speech-to-Text 2,7 s → 1,1 s pro 8-s-Stück. Modell jetzt `google/gemini-3.1-flash-lite`
-  (gleiche OCR, gleiche KI-Bild-Urteile auf den Testbildern, gleiches Transkript). X-Fotos werden als 680-px-Variante angefragt (`name=small`).
-- Robuster: ein sofortiger zweiter Versuch bei Fehlern; ein Post wartet max. 4 s (vorher 6 s) aufs Bild.
-- Belegt: echte `pbs.twimg.com`-URLs kann der Anbieter laden (4 echte X-Bilder getestet).
-
-**Was musst du tun:**
-- `git pull --rebase origin main`; in `.env` `STT_MODEL=google/gemini-3.1-flash-lite` setzen (oder Zeile löschen → Default); `npm run build`; ↻
-- **Scraper-Dev (Franz): bitte kurz drüberschauen**, die Änderung in `x.ts` kam vom AI-Dev, weil sie die Bild-Erkennung blockiert hat. Nur im Browser prüfbar.
-
-**Wichtig zu wissen:** Bleibt ein Bild trotzdem aus, steht im Service-Worker-Log `[fedo:ai] vision failed → text only: …`. Das Post-Ergebnis wird im Glue pro Post gecacht,
-ein zu spät gekommenes Bild wird also nicht nachgereicht.
+**Good to know:** On a completely clean post all values are at the minimum value → the five rows shown are then always the same first five (fixed order so that nothing jumps).
+Contrasts of all new texts measured in all four themes (≥ 4.5:1), click targets ≥ 24 px; hover colours only calculated from the tokens, not measured with a real pointer.
 
 ---
 
-## 2026-09-21 · `ai/vision` · AI (+3 optionale Config-Felder) · Bilder werden gesehen: Text im Bild, Video-Standbild, Anzeichen für KI-Bilder
+## 2026-09-21 · `ai/faster-media` · AI + Scraper (X) · Images are now recognised reliably, image + speech-to-text ~2.5× faster
 
-**Was hat sich geändert:**
-- Bisher war alles im Bild unsichtbar (Jev liest nur Text). Jetzt geht `media[].url` bzw. bei Videos `posterUrl` an ein multimodales Modell
-  (Gemini 2.5 Flash über OpenRouter, derselbe Endpoint wie Speech-to-Text). Scraper und Glue mussten dafür NICHT geändert werden.
-  - **Text im Bild** (Memes, eingeblendete Schlagzeilen, Screenshots) läuft durch die normale Bewertung inkl. Zitaten. Ein Meme ganz ohne Post-Text wird jetzt bewertet.
-  - **`synthetic_media`** wird endlich geliefert: „sichtbare Anzeichen für KI-Generierung/Bearbeitung", bewusst vorsichtig (max. 90 %, `evidence` = das sichtbare Merkmal).
-    Test: bekanntes Midjourney-Bild 80 %, echtes Pressefoto 10 %.
-  - Ergebnis hat dann `source: "combined"`, bei reinen Bild-Posts `coverage: "full"`. Erklärung hat einen eigenen Satz fürs Bild („indication, not proof").
-- Läuft parallel zur Textanalyse; ein Post wartet höchstens 6 s aufs Bild, sonst kommt das Text-Ergebnis. Nur im Cloud-Modus, nie in „local".
-- **Außerhalb von `ai/` (klein, optional):** `AnalyzerConfig.visionApiUrl/Key/Model` in `contracts/modules.ts`, Durchreichen in `scripts/build.mjs`, Vorlage in `.env.example`.
+**What changed:**
+- **Cause of "images are only recognised sometimes" (Scraper, `scraper/platforms/x.ts`):** X only inserts `<img>`/`<video>` once the medium has loaded,
+  and the GraphQL replay for the first screen page arrives a moment AFTER the first scan. The post was read immediately → often `media: []` → the AI
+  knew nothing about the image. Now: if a post visibly has a media container but neither a GraphQL record nor an element, it is re-checked for up to 2.5 s (every 250 ms)
+  before `onItem` comes. Posts without media and posts with a GraphQL record are there immediately, unchanged.
+- **Faster (measured, 3–4 runs each):** image 2.4–4.2 s → 0.9–1.9 s, speech-to-text 2.7 s → 1.1 s per 8-s piece. Model is now `google/gemini-3.1-flash-lite`
+  (same OCR, same AI-image verdicts on the test images, same transcript). X photos are requested as the 680-px variant (`name=small`).
+- More robust: one immediate second attempt on errors; a post waits at most 4 s (previously 6 s) for the image.
+- Proven: the provider can load real `pbs.twimg.com` URLs (4 real X images tested).
 
-**Was musst du tun:**
-- `git pull --rebase origin main`, `npm run build`, ↻. Keine neue `.env`-Zeile nötig, wenn `STT_API_URL` schon auf `…/chat/completions` zeigt.
-- **UI-Dev:** `synthetic_media` kann jetzt ≥ 50 % sein; `evidence` ist dort kein Zitat aus dem Post, sondern das sichtbare Merkmal im Bild → ggf. ohne Anführungszeichen zeigen.
-  Das „text only"-Tag verschwindet bei Bild-Posts, sobald das Bild gesehen wurde (`coverage: "full"`).
+**What you need to do:**
+- `git pull --rebase origin main`; set `STT_MODEL=google/gemini-3.1-flash-lite` in `.env` (or delete the line → default); `npm run build`; ↻
+- **Scraper dev (Franz): please take a quick look**, the change in `x.ts` came from the AI dev because it was blocking the image recognition. Can only be verified in the browser.
 
-**Wichtig zu wissen:** Bei Videos wird nur EIN Standbild (Poster) angesehen, nicht das laufende Bild. Keine Deepfake-Forensik. Im Cloud-Modus gehen Bild-URLs an OpenRouter/Google.
+**Good to know:** If an image still does not come through, the service worker log says `[fedo:ai] vision failed → text only: …`. The post result is cached per post in the glue,
+so an image that arrived too late is not delivered afterwards.
 
 ---
 
-## 2026-09-21 · `ai/transcript-sources` · AI · Robust gegen zwei Transkript-Quellen gleichzeitig (Untertitel + STT)
+## 2026-09-21 · `ai/vision` · AI (+3 optional config fields) · Images are seen: text in the image, video still frame, signs of AI images
 
-**Was hat sich geändert** (nur `ai/`, baut auf `integrate/video-stt` #16 auf):
-- Im integrierten Stand liefern auf TikTok ZWEI Quellen Text für dasselbe Video: der Scraper (Untertitel-Datei, ggf. Whisper) über
-  `onTranscript` und die Audio-Aufnahme (captureStream → Gemini) über `onAudio`. Im Glue landet beides in einer Liste → alles doppelt,
-  zeitlich durcheinander, und zusätzlich steht der Text noch in `item.captions`.
-- `ai/transcript.ts` räumt auf: sind Untertitel-Chunks da, zählen nur sie (exakt + gratis); sortiert nach Zeit, Doppelte raus;
-  `item.captions` wird dann nicht noch einmal mitgezählt.
-- Auto-Untertitel ohne Satzzeichen werden zu lesbaren Einheiten gruppiert (sonst: ein endloser Satz, leere Timeline).
-- Tests ohne Netzwerk: `npx tsx ai/dev/test-transcript.ts`. Evals 15/15 lokal, 20/20 Jev.
+**What changed:**
+- Until now everything in the image was invisible (Jev only reads text). Now `media[].url`, or for videos `posterUrl`, goes to a multimodal model
+  (Gemini 2.5 Flash via OpenRouter, the same endpoint as speech-to-text). Scraper and glue did NOT have to be changed for this.
+  - **Text in the image** (memes, overlaid headlines, screenshots) runs through the normal scoring incl. quotes. A meme with no post text at all is now scored.
+  - **`synthetic_media`** is finally delivered: "visible signs of AI generation/editing", deliberately cautious (max. 90 %, `evidence` = the visible feature).
+    Test: known Midjourney image 80 %, real press photo 10 %.
+  - The result then has `source: "combined"`, for pure image posts `coverage: "full"`. The explanation has its own sentence for the image ("indication, not proof").
+- Runs in parallel to the text analysis; a post waits at most 6 s for the image, otherwise the text result comes. Only in cloud mode, never in "local".
+- **Outside of `ai/` (small, optional):** `AnalyzerConfig.visionApiUrl/Key/Model` in `contracts/modules.ts`, pass-through in `scripts/build.mjs`, template in `.env.example`.
 
-**Was musst du tun:**
+**What you need to do:**
+- `git pull --rebase origin main`, `npm run build`, ↻. No new `.env` line needed if `STT_API_URL` already points to `…/chat/completions`.
+- **UI dev:** `synthetic_media` can now be ≥ 50 %; `evidence` there is not a quote from the post but the visible feature in the image → show it without quotation marks if needed.
+  The "text only" tag disappears on image posts as soon as the image has been seen (`coverage: "full"`).
+
+**Good to know:** For videos only ONE still frame (poster) is looked at, not the running picture. No deepfake forensics. In cloud mode image URLs go to OpenRouter/Google.
+
+---
+
+## 2026-09-21 · `ai/transcript-sources` · AI · Robust against two transcript sources at the same time (subtitles + STT)
+
+**What changed** (`ai/` only, builds on `integrate/video-stt` #16):
+- In the integrated state, TWO sources deliver text for the same video on TikTok: the scraper (subtitle file, possibly Whisper) via
+  `onTranscript` and the audio recording (captureStream → Gemini) via `onAudio`. In the glue both end up in one list → everything duplicated,
+  out of order in time, and on top of that the text is also in `item.captions`.
+- `ai/transcript.ts` cleans up: if subtitle chunks are there, only they count (exact + free); sorted by time, duplicates removed;
+  `item.captions` is then not counted a second time.
+- Auto-subtitles without punctuation are grouped into readable units (otherwise: one endless sentence, empty timeline).
+- Tests without network: `npx tsx ai/dev/test-transcript.ts`. Evals 15/15 local, 20/20 Jev.
+
+**What you need to do:**
 - `git pull --rebase origin main`, `npm run build`, ↻
-- **Glue/Scraper (bitte absprechen, spart Geld + Latenz):** Wenn für ein Video Untertitel-Chunks kommen, braucht es kein `onAudio`→STT mehr.
-  Vorschlag: im Glue `onAudio` ignorieren, sobald `entry.transcript` einen Chunk mit `source: "captions"` hat. Die AI kommt mit beidem klar,
-  aber aktuell wird jedes untertitelte Video zusätzlich kostenpflichtig transkribiert.
+- **Glue/Scraper (please coordinate, saves money + latency):** If subtitle chunks arrive for a video, `onAudio`→STT is no longer needed.
+  Proposal: in the glue ignore `onAudio` as soon as `entry.transcript` has a chunk with `source: "captions"`. The AI copes with both,
+  but currently every subtitled video is additionally transcribed at a cost.
 
-**Wichtig zu wissen:** Zum AI-Abgleich aus #15: `political_content` bleibt der einzige „Thema statt Technik"-Key (SEVERITY 0) → `TOPIC_KEYS` passt.
+**Good to know:** Regarding the AI alignment from #15: `political_content` remains the only "topic instead of technique" key (SEVERITY 0) → `TOPIC_KEYS` fits.
 
 ---
 
-## 2026-09-21 · `main @ f68c853` · UI · `political_content` = Thema statt Signal (Abgleich mit AI), Lade-Effekte
+## 2026-09-21 · `main @ f68c853` · UI · `political_content` = topic instead of signal (alignment with AI), loading effects
 
-**Was hat sich geändert:**
-- **Abgleich UI ↔ AI:** `ai/assess.ts` wertet `political_content` als *Thema* (SEVERITY 0, nicht in `overall`, Timeline, Erklärung).
-  Die UI zeigte es als Label und zählte den Post als „mit Signalen" (4 von 24 Eval-Posts). Jetzt: gedämpfter Tag „political topic",
-  zählt nirgends als Signal (Zeile, Panel oben rechts, Per-Post-Dashboard, Dashboard-Seite, Popup-Readouts). Liste der Themen-Keys: `TOPIC_KEYS` in `ui/theme.ts`.
-- Sonst passt alles: `overall`-Stufen, `timeline`, `partial`, `source`, `COUNT_FROM 0.5` = UI-Schwelle 0.5, jedes gelabelte Ergebnis hat `evidence`.
-  Slop-Cover (≥ 85 %) löste bei 1/24 Posts aus (Growth Guru, `possible_ai_slop` 96) – nicht überempfindlich.
-- **Lade-Effekte:** Skeleton-Pills + animierte Punkte während der Analyse, „Still analyzing · 4s" ab 3 s, „Taking longer than usual" ab 12 s,
-  kriechende Fortschrittslinie bei langsamer API, Crossfade im Panel beim Post-Wechsel, Shimmer-Skeletons in Dashboard + Popup, „Updated"-Puls im Dashboard.
+**What changed:**
+- **Alignment UI ↔ AI:** `ai/assess.ts` treats `political_content` as a *topic* (SEVERITY 0, not in `overall`, timeline, explanation).
+  The UI showed it as a label and counted the post as "with signals" (4 of 24 eval posts). Now: a muted "political topic" tag,
+  counts nowhere as a signal (row, top-right panel, per-post dashboard, dashboard page, popup readouts). List of topic keys: `TOPIC_KEYS` in `ui/theme.ts`.
+- Otherwise everything fits: `overall` levels, `timeline`, `partial`, `source`, `COUNT_FROM 0.5` = UI threshold 0.5, every labelled result has `evidence`.
+  Slop cover (≥ 85 %) triggered on 1/24 posts (Growth Guru, `possible_ai_slop` 96) – not oversensitive.
+- **Loading effects:** skeleton pills + animated dots during the analysis, "Still analyzing · 4s" from 3 s, "Taking longer than usual" from 12 s,
+  a creeping progress line when the API is slow, crossfade in the panel when the post changes, shimmer skeletons in dashboard + popup, "Updated" pulse in the dashboard.
 
-**Was musst du tun:**
+**What you need to do:**
 - `git pull --rebase origin main`, `npm run build`, ↻.
-- **AI-Dev:** wenn weitere Keys zu „Thema statt Technik" werden (SEVERITY 0), bitte kurz sagen → `TOPIC_KEYS` in `ui/theme.ts` nachziehen.
-  Der Erklärungstext endet mit „…not whether the message is true…" – die UI zeigt darunter zusätzlich „Techniques, not opinions"; wenn das doppelt wirkt, lass ich die Fußnote weg, sag Bescheid.
+- **AI dev:** if further keys become "topic instead of technique" (SEVERITY 0), please say so briefly → update `TOPIC_KEYS` in `ui/theme.ts` accordingly.
+  The explanation text ends with "…not whether the message is true…" – the UI additionally shows "Techniques, not opinions" below it; if that feels redundant, I'll drop the footnote, let me know.
 
-**Wichtig zu wissen:** Das UI-eigene Prüfskript (`npx tsx ui/dev/contract-coverage.ts`) darf `ai/` nicht importieren (Boundaries) – der Abgleich mit echten
-AI-Ergebnissen lief einmalig lokal; bei größeren AI-Änderungen bitte `npm run dev:ai` und im Playground gegenprüfen.
+**Good to know:** The UI's own check script (`npx tsx ui/dev/contract-coverage.ts`) must not import `ai/` (boundaries) – the alignment with real
+AI results was run once locally; for larger AI changes please run `npm run dev:ai` and cross-check in the playground.
 
 ---
 
-## 2026-09-21 · `main @ 35d0149` · UI · Festes Panel oben rechts statt Zeile unter jedem Post
+## 2026-09-21 · `main @ 35d0149` · UI · Fixed panel at the top right instead of a row under every post
 
-**Was hat sich geändert:**
-- **Neues Standard-Layout „Top right":** ein festes Panel oben rechts (`fedo-hud`, Shadow DOM), das beim Scrollen immer den gerade sichtbaren
-  Post zeigt – Autor, Gesamtstufe, Fortschrittslinie während die KI arbeitet, Labels, „Details ›" (Per-Post-Dashboard klappt im Panel auf),
-  Button **Dashboard ↗**. Im Feed selbst steht dann nichts mehr. Alternative „Under post" (die Zeile) bleibt: Popup → „Show results".
-- Sichtbarer Post = `IntersectionObserver` über die Anker-Elemente (`article`), die der Scraper liefert; funktioniert auf jeder Seite, auf der
-  `onItem(item, anchor)` einen Anker gibt.
+**What changed:**
+- **New default layout "Top right":** a fixed panel at the top right (`fedo-hud`, Shadow DOM) that, while scrolling, always shows the currently visible
+  post – author, overall level, progress line while the AI is working, labels, "Details ›" (the per-post dashboard expands inside the panel),
+  button **Dashboard ↗**. Nothing is shown in the feed itself any more. The alternative "Under post" (the row) remains: popup → "Show results".
+- Visible post = `IntersectionObserver` over the anchor elements (`article`) that the scraper delivers; works on every site on which
+  `onItem(item, anchor)` provides an anchor.
 
-**Was musst du tun:**
+**What you need to do:**
 - `git pull --rebase origin main`, `npm run build`, ↻ in chrome://extensions.
-- **Felix (Glue, 1 Eintrag in `extension/manifest.json`):**
+- **Felix (Glue, 1 entry in `extension/manifest.json`):**
   `"web_accessible_resources": [{ "resources": ["dashboard.html"], "matches": ["https://x.com/*", "https://twitter.com/*", "https://www.tiktok.com/*"] }]`
-  – damit der Dashboard-Button im Panel die Seite aus dem Content Script öffnen kann. Ohne den Eintrag zeigt der Button „Use the Fedo icon"
-  (Popup → Open dashboard funktioniert immer).
-- **Scraper-Dev:** `onItemRemoved(itemId)` ist jetzt wichtiger: das Panel folgt nur Ankern, die noch im DOM sind.
+  – so that the dashboard button in the panel can open the page from the content script. Without the entry the button shows "Use the Fedo icon"
+  (popup → Open dashboard always works).
+- **Scraper dev:** `onItemRemoved(itemId)` is now more important: the panel only follows anchors that are still in the DOM.
 
-**Wichtig zu wissen:** Playground (`npm run dev:ui`) hat ein Layout-Dropdown zum Vergleichen.
-
----
-
-## 2026-09-21 · `main @ ec9b14b` · UI (+2 Zeilen Glue) · Analyse-Dashboard, Per-Post-Log, Contract-Abgleich
-
-**Was hat sich geändert:**
-- **Neue Extension-Seite `dashboard.html`** (Popup → „Open dashboard"): Zeitfenster Today / 7 days / All, Readouts (analysiert, mit Signalen,
-  Heavy use, AI slop) mit 7-Tage-Sparkline, Techniken-Ranking + Kategorie-Verteilung, Quellen mit den meisten Signalen, Post-Liste mit
-  Suche, Filtern (Plattform / Level / nur Slop), Klick-Filter auf Technik oder Quelle, aufklappbaren Details, „Open post ↗", Export JSON, Reset.
-- **`ui/log.ts`:** das Overlay schreibt pro fertig analysiertem Post einen Eintrag nach `chrome.storage.local` (`fedo.ui.log`, max. 500).
-  Autor/Text werden **best effort aus dem `article`-DOM** gelesen (X: `User-Name` / `tweetText`, TikTok: `data-e2e`), weil `render()` keinen `FeedItem` bekommt.
-- **Glue (2 Zeilen, `scripts/build.mjs`):** `dashboard.html` kopieren + `ui/dashboard/dashboard.ts` → `dist/dashboard.js` bündeln. Sonst nichts außerhalb `ui/`.
-- **Adaptierbarkeit:** unbekannte Signal-Gruppen rendern neutral statt zu brechen. `npx tsx ui/dev/contract-coverage.ts` prüft die UI gegen
-  `contracts/` (Labels, Gruppen, Level, Fixtures, `OverlayRenderer`, Messages) und listet, welche Contract-Felder die UI noch nicht liest.
-- Per-Post-Panel zeigt jetzt `source` (mock / jev / …) neben Latenz – praktisch beim Live-Test.
-
-**Was musst du tun:**
-- `git pull --rebase origin main`, `npm run build`, in chrome://extensions auf ↻, dann auf x.com scrollen und im Popup „Open dashboard".
-- **Felix, bitte testen, ob das so passt:** (1) `scripts/build.mjs`-Ergänzung okay? (2) Läuft das Dashboard mit echten Analysen sauber
-  (Autor/Text richtig aus dem DOM)? (3) **Contract-Vorschlag, rein additiv:** `OverlayRenderer.render(itemId, anchor, state, item?: FeedItem)`
-  als optionaler 4. Parameter – der Glue hat den `FeedItem` in `onItem` ohnehin in der Hand. Dann sind Autor, Text, `isRepost`, `createdAt`,
-  `quotedText` im Dashboard exakt statt aus dem DOM geraten. Die UI läuft mit und ohne den Parameter.
-- **AI-Dev:** nichts zu tun; Dashboard nutzt `overall`, `signals[].evidence`, `explanation`, `timeline`, `source`.
-- **Scraper-Dev:** `onItemRemoved(itemId)` weiterhin rufen; das Log bleibt davon unberührt (es zählt nur fertige Analysen).
-
-**Wichtig zu wissen:** Außerhalb der Extension (Datei direkt öffnen) zeigt `dashboard.html` Demo-Daten – gut zum Review, nicht echt.
-Post-Links ins Dashboard werden auf `http(s)` geprüft (Extension-Seite = privilegiert).
+**Good to know:** The playground (`npm run dev:ui`) has a layout dropdown for comparing.
 
 ---
 
-## 2026-09-21 · `main @ ba4deab` · Scraper · TikTok liest Item-JSON + Untertitel, lokales Speech-to-Text, Transcript-Kanal live
+## 2026-09-21 · `main @ ec9b14b` · UI (+2 lines of Glue) · Analysis dashboard, per-post log, contract alignment
 
-**Was hat sich geändert:**
-- Neues MAIN-world-Skript `scraper/main-world.ts` (Manifest: zweiter `content_scripts`-Eintrag mit `"world": "MAIN"`,
-  Build: Entry `dist/main-world.js`). Es liest das TikTok-Item-JSON und X-GraphQL-Antworten aus fetch/XHR und reicht sie
-  an den Scraper weiter — der TikTok-For-You-DOM trägt keine Video-ID, deshalb braucht es diesen Weg.
-- TikTok-Adapter neu: echte IDs (`tiktok:<id>`), Autor, Text, Hashtags, Medien, Erstellzeit, Untertitel in `item.captions`.
-  `onItem` kommt, **bevor** das Video läuft. `onItemRemoved` wird gerufen, wenn TikTok den Artikel recycelt (Wunsch UI-Dev).
-- `sink.onTranscript` läuft: Plattform-Untertitel (WebVTT) im Takt der Wiedergabe, und für Videos **ohne** Untertitel lokales
-  Speech-to-Text über `whisper-server` (kein `chrome.tabCapture` nötig — die offene Frage aus dem `ai/live-video`-Eintrag).
-  Erster Chunk ~1 s nach Videostart, ein Job zur Zeit, Abbruch beim Weiterscrollen.
-- X: GraphQL-/Syndication-Mapper mit Cache (Fixture-getestet), DOM-Pfad unverändert. Live eingeloggt noch nicht verifiziert.
-- Tests: `npm run test:scraper` (17 Tests, node:test + tsx, keine neue Abhängigkeit).
-  Doku: `scraper/RESEARCH.md` (Messungen, Datenwege je Feld, Coverage-Tabelle, offene Punkte).
+**What changed:**
+- **New extension page `dashboard.html`** (popup → "Open dashboard"): time windows Today / 7 days / All, readouts (analyzed, with signals,
+  Heavy use, AI slop) with a 7-day sparkline, technique ranking + category distribution, sources with the most signals, post list with
+  search, filters (platform / level / slop only), click filter on technique or source, expandable details, "Open post ↗", Export JSON, Reset.
+- **`ui/log.ts`:** the overlay writes one entry per fully analyzed post to `chrome.storage.local` (`fedo.ui.log`, max. 500).
+  Author/text are read **best effort from the `article` DOM** (X: `User-Name` / `tweetText`, TikTok: `data-e2e`), because `render()` does not receive a `FeedItem`.
+- **Glue (2 lines, `scripts/build.mjs`):** copy `dashboard.html` + bundle `ui/dashboard/dashboard.ts` → `dist/dashboard.js`. Nothing else outside `ui/`.
+- **Adaptability:** unknown signal groups render neutrally instead of breaking. `npx tsx ui/dev/contract-coverage.ts` checks the UI against
+  `contracts/` (labels, groups, levels, fixtures, `OverlayRenderer`, messages) and lists which contract fields the UI does not read yet.
+- The per-post panel now shows `source` (mock / jev / …) next to the latency – handy for live testing.
 
-**Was musst du tun:**
-- `git pull --rebase origin main`, `npm run build` + in chrome://extensions auf ↻ (Manifest hat sich geändert → Extension wirklich neu laden)
-- Für Video-Transkripte ohne Untertitel: `bash scraper/companion/whisper-server.sh` in einem eigenen Terminal
-  (braucht `brew install whisper-cpp` + Modell, Hinweise stehen im Skript). Ohne Server gibt es Transkripte nur bei Untertitel-Videos.
+**What you need to do:**
+- `git pull --rebase origin main`, `npm run build`, click ↻ in chrome://extensions, then scroll on x.com and click "Open dashboard" in the popup.
+- **Felix, please test whether this works for you:** (1) `scripts/build.mjs` addition okay? (2) Does the dashboard run cleanly with real analyses
+  (author/text correct from the DOM)? (3) **Contract proposal, purely additive:** `OverlayRenderer.render(itemId, anchor, state, item?: FeedItem)`
+  as an optional 4th parameter – the glue has the `FeedItem` in hand in `onItem` anyway. Then author, text, `isRepost`, `createdAt`,
+  `quotedText` in the dashboard are exact instead of guessed from the DOM. The UI runs with and without the parameter.
+- **AI dev:** nothing to do; the dashboard uses `overall`, `signals[].evidence`, `explanation`, `timeline`, `source`.
+- **Scraper dev:** keep calling `onItemRemoved(itemId)`; the log is unaffected by it (it only counts finished analyses).
 
-**Wichtig zu wissen:**
-- **AI-Dev:** Bei Videos mit Untertiteln kommt der Text in `item.captions` UND als `onTranscript`-Chunks (RESEARCH.md §10).
-  Empfehlung: bei `kind: "transcript"` das Feld `captions` im State weglassen, wenn `transcript[0].source === "captions"`.
-- **Team:** Vorschlag als nächste Contract-Erweiterung (eigener kleiner PR): vier optionale Felder `language`, `stats`,
-  `stickerTexts`, `communityNote` (Typen in RESEARCH.md §9.2).
-- **Glue (`extension/src/background.ts`):** cached `kind: "post"` je `item.id`, ein zweites `onItem` mit mehr Daten wird
-  verschluckt. Vorschlag: Cache-Eintrag verwerfen, wenn ein zweites `onItem` derselben ID längeren Text bringt.
-- Offen: X eingeloggt live prüfen (Sonde in `scraper/research/console-probes/`), echte Extension auf tiktok.com —
-  zeigt die Konsole einen Fehler mit `127.0.0.1`, gilt der Reserveweg aus RESEARCH.md §12.
+**Good to know:** Outside the extension (opening the file directly) `dashboard.html` shows demo data – good for review, not real.
+Post links into the dashboard are checked for `http(s)` (extension page = privileged).
 
 ---
 
-## 2026-09-21 · `ai/irony-and-memes` · AI · Ironie, Satire und Memes werden erkannt
+## 2026-09-21 · `main @ ba4deab` · Scraper · TikTok reads item JSON + subtitles, local speech-to-text, transcript channel live
 
-**Was hat sich geändert:**
-- Getestet an 183 weiteren echten Posts (The Onion, Postillon, dril, Meme-/Satire-/Rant-Hashtags). Problem: Jev las alles wörtlich
-  („like an insane animal“ → Dehumanizing, Satire-Schlagzeilen → Sensationalism).
-- Jetzt drei Kontextfragen im selben Request (keine Zusatz-Latenz): Humor? Sarkasmus? Reale Gruppe als Ziel?
-  - Humor ohne reale Zielgruppe → Signale gedämpft (Onion, Postillon, Katzen-Memes landen auf `none`).
-  - Humor auf Kosten einer realen Gruppe → NICHT gedämpft, aber höchstens `medium`. „War nur Spaß“-Hetze erkennt Jev gar nicht erst als Humor → bleibt `high`.
-  - Sarkasmus → Scores bleiben (ist trotzdem Persuasion), die Erklärung beginnt mit „The author uses sarcasm…“.
-- Ergebnis Humor-Sample: none 89 → 121, medium 23 → 14. News-Sample ohne Regression. Evals 15/15 lokal, 20/20 Jev.
+**What changed:**
+- New MAIN-world script `scraper/main-world.ts` (manifest: second `content_scripts` entry with `"world": "MAIN"`,
+  build: entry `dist/main-world.js`). It reads the TikTok item JSON and X GraphQL responses from fetch/XHR and passes them
+  on to the scraper — the TikTok For You DOM carries no video ID, which is why this route is needed.
+- TikTok adapter rewritten: real IDs (`tiktok:<id>`), author, text, hashtags, media, creation time, subtitles in `item.captions`.
+  `onItem` comes **before** the video plays. `onItemRemoved` is called when TikTok recycles the article (UI dev's request).
+- `sink.onTranscript` is running: platform subtitles (WebVTT) in step with playback, and for videos **without** subtitles local
+  speech-to-text via `whisper-server` (no `chrome.tabCapture` needed — the open question from the `ai/live-video` entry).
+  First chunk ~1 s after video start, one job at a time, aborted when scrolling on.
+- X: GraphQL/syndication mapper with cache (fixture-tested), DOM path unchanged. Not yet verified live while logged in.
+- Tests: `npm run test:scraper` (17 tests, node:test + tsx, no new dependency).
+  Docs: `scraper/RESEARCH.md` (measurements, data routes per field, coverage table, open points).
 
-**Was musst du tun:**
+**What you need to do:**
+- `git pull --rebase origin main`, `npm run build` + click ↻ in chrome://extensions (the manifest has changed → really reload the extension)
+- For video transcripts without subtitles: `bash scraper/companion/whisper-server.sh` in a separate terminal
+  (needs `brew install whisper-cpp` + model, hints are in the script). Without the server there are transcripts only for videos with subtitles.
+
+**Good to know:**
+- **AI dev:** For videos with subtitles the text arrives in `item.captions` AND as `onTranscript` chunks (RESEARCH.md §10).
+  Recommendation: for `kind: "transcript"` leave out the `captions` field in the state if `transcript[0].source === "captions"`.
+- **Team:** Proposal for the next contract extension (its own small PR): four optional fields `language`, `stats`,
+  `stickerTexts`, `communityNote` (types in RESEARCH.md §9.2).
+- **Glue (`extension/src/background.ts`):** caches `kind: "post"` per `item.id`, a second `onItem` with more data gets
+  swallowed. Proposal: discard the cache entry if a second `onItem` with the same ID brings longer text.
+- Open: check X live while logged in (probe in `scraper/research/console-probes/`), real extension on tiktok.com —
+  if the console shows an error with `127.0.0.1`, the fallback route from RESEARCH.md §12 applies.
+
+---
+
+## 2026-09-21 · `ai/irony-and-memes` · AI · Irony, satire and memes are recognised
+
+**What changed:**
+- Tested on 183 further real posts (The Onion, Postillon, dril, meme/satire/rant hashtags). Problem: Jev read everything literally
+  ("like an insane animal" → Dehumanizing, satire headlines → Sensationalism).
+- Now three context questions in the same request (no extra latency): Humor? Sarcasm? A real group as the target?
+  - Humor without a real target group → signals dampened (Onion, Postillon, cat memes end up at `none`).
+  - Humor at the expense of a real group → NOT dampened, but at most `medium`. "It was just a joke" hate speech is not recognised as humor by Jev in the first place → stays `high`.
+  - Sarcasm → scores stay (it is still persuasion), the explanation starts with "The author uses sarcasm…".
+- Result on the humor sample: none 89 → 121, medium 23 → 14. News sample without regression. Evals 15/15 local, 20/20 Jev.
+
+**What you need to do:**
 - `git pull --rebase origin main`, `npm run build`, ↻
-- **UI-Dev:** `explanation` kann jetzt mit einem Ton-Hinweis beginnen („This reads as humor or satire…“) → gut sichtbar im „Why?“-Panel.
+- **UI dev:** `explanation` can now start with a tone hint ("This reads as humor or satire…") → clearly visible in the "Why?" panel.
 
-**Wichtig zu wissen:** Ton-Erkennung gibt es nur im Jev-Modus. Die lokale Fallback-Engine liest weiter wörtlich.
+**Good to know:** Tone recognition only exists in Jev mode. The local fallback engine keeps reading literally.
 
 ---
 
-## 2026-09-21 · `main @ e6fc253` · UI · Design-System, vier Themes, Slop-Cover, Live-Tracker, Dashboard-Popup
+## 2026-09-21 · `main @ e6fc253` · UI · Design system, four themes, slop cover, live tracker, dashboard popup
 
-**Was hat sich geändert:**
-- **Im Feed nur noch eine ruhige Zeile pro Post** (28 px, kein Kasten): `LIVE · bis zu 3 Labels mit Kategorie-Punkt · +N · Details ›`.
-  Darüber eine 2-px-Fortschrittslinie, die sich füllt, während die KI arbeitet. Klick auf die Zeile öffnet das Per-Post-Dashboard
-  (Erklärung, `overall`, Meter mit Evidence, bei Videos die `timeline` als Log mit Zeitstempeln).
-- **Farbe = Kategorie** (political violett · rhetoric orange · credibility amber · synthetic teal, aus `SIGNALS[key].group`),
-  **nie „schlecht"**. Rot gibt es nur für LIVE und den Pending-Punkt.
-- **Vier Themes:** light / dark (folgt automatisch dem Host) + je eine farbenblind-sichere Variante (Okabe-Ito + Formsymbole ◆ ▲ ● ■).
-- **AI-Slop-Cover:** `possible_ai_slop` oder `synthetic_media` ≥ 85 % → voll-breites Cover über dem Post, per × wegklickbar.
-- **Popup = Dashboard:** An/Aus, Readout (analysiert / mit Signalen / Verteilung nach Gruppe), Appearance (System · Light · Dark),
-  Colour-blind-Schalter, Slop-Cover-Schalter, Sensitivität, „Open x.com". Settings gelten **sofort**, kein Feed-Reload.
-- Neue Dateien in `ui/`: `theme.ts` (Tokens), `prefs.ts` (UI-eigene Prefs + Zähler in `chrome.storage.local` unter `fedo.ui.*`).
-- **Kein Contract, kein Glue geändert.** Design-System (Tokens, Previews, Guidelines): https://claude.ai/artifact/3yqsB8zBs3oKGnTpt4y11Y
+**What changed:**
+- **In the feed only one calm row per post now** (28 px, no box): `LIVE · up to 3 labels with category dot · +N · Details ›`.
+  Above it a 2-px progress line that fills while the AI is working. Clicking the row opens the per-post dashboard
+  (explanation, `overall`, meters with evidence, for videos the `timeline` as a log with timestamps).
+- **Colour = category** (political violet · rhetoric orange · credibility amber · synthetic teal, from `SIGNALS[key].group`),
+  **never "bad"**. Red exists only for LIVE and the pending dot.
+- **Four themes:** light / dark (automatically follows the host) + one colour-blind-safe variant each (Okabe-Ito + shape symbols ◆ ▲ ● ■).
+- **AI slop cover:** `possible_ai_slop` or `synthetic_media` ≥ 85 % → full-width cover over the post, dismissible via ×.
+- **Popup = dashboard:** on/off, readout (analyzed / with signals / distribution by group), Appearance (System · Light · Dark),
+  colour-blind switch, slop cover switch, sensitivity, "Open x.com". Settings apply **immediately**, no feed reload.
+- New files in `ui/`: `theme.ts` (tokens), `prefs.ts` (UI-owned prefs + counters in `chrome.storage.local` under `fedo.ui.*`).
+- **No contract, no glue changed.** Design system (tokens, previews, guidelines): https://claude.ai/artifact/3yqsB8zBs3oKGnTpt4y11Y
 
-**Was musst du tun:**
-- `git pull --rebase origin main`, `npm run build`, in chrome://extensions auf ↻
-- **AI-Dev:** `evidence` pro Signal, `explanation` und `timeline` sind das, was das Dashboard und das Live-Log gut machen – bitte weiter befüllen.
-  `possible_ai_slop` ≥ 0.85 löst jetzt das Cover aus: bitte nur bei wirklich klaren Fällen so hoch scoren.
-- **Scraper-Dev:** der Anker (`article`) bekommt `position: relative`, wenn er `static` ist (für das Cover). `onItemRemoved` bitte rufen,
-  damit Overlay + Cover mit dem Post verschwinden.
+**What you need to do:**
+- `git pull --rebase origin main`, `npm run build`, click ↻ in chrome://extensions
+- **AI dev:** `evidence` per signal, `explanation` and `timeline` are what make the dashboard and the live log good – please keep filling them.
+  `possible_ai_slop` ≥ 0.85 now triggers the cover: please only score that high in really clear cases.
+- **Scraper dev:** the anchor (`article`) gets `position: relative` if it is `static` (for the cover). Please call `onItemRemoved`
+  so that overlay + cover disappear together with the post.
 
-**Wichtig zu wissen:** `npm run dev:ui` hat jetzt Theme-Dropdown, Schwellwert-Slider, Live-Simulation und einen Slop-Testpost.
-Das Cover ist standardmäßig an (Popup → „Cover AI slop posts").
-## 2026-09-21 · `ai/video-integration` · AI · Video-Pipeline (captureStream → STT → Analyse) AI-seitig angepasst + getestet
+**Good to know:** `npm run dev:ui` now has a theme dropdown, threshold slider, live simulation and a slop test post.
+The cover is on by default (popup → "Cover AI slop posts").
 
-**Was hat sich geändert** (nur `ai/`, baut auf `video-stt` auf):
-- Ende-zu-Ende in Node getestet (`npx tsx ai/dev/run-stt.ts <wav> --jev`): STT ~1,3 s pro 8-s-Stück (Gemini 2.5 Flash über OpenRouter),
-  wortgenau; Musik/Rauschen → leeres Transkript, nichts Erfundenes. Danach Jev ~0,5 s → Anzeige ca. 10 s hinter dem Video.
-- Sätze, die an den 8-s-Audiogrenzen zerschnitten werden („… Not us. The" | „newcomers get …"), setzt `ai/transcript.ts` wieder zusammen.
-- Jev bewertet jeden fertigen gesprochenen Satz einzeln (pro Video gecacht → jeder Satz kostet genau einmal):
-  `timeline` und Zitate funktionieren damit auch bei natürlicher Sprache, nicht nur bei Lexikon-Treffern.
-- `ai/` setzt `coverage` jetzt selbst (der Fallback in `background.ts` greift dann nicht mehr) und meldet `source: "local"` für die Offline-Engine.
-- `ai/` ist auf dem Stand von `main` (Ton-Erkennung für Satire/Ironie aus #11).
+---
 
-**Was musst du tun:**
+## 2026-09-21 · `ai/video-integration` · AI · Video pipeline (captureStream → STT → analysis) adapted + tested on the AI side
+
+**What changed** (`ai/` only, builds on `video-stt`):
+- Tested end to end in Node (`npx tsx ai/dev/run-stt.ts <wav> --jev`): STT ~1.3 s per 8-s piece (Gemini 2.5 Flash via OpenRouter),
+  word-accurate; music/noise → empty transcript, nothing made up. After that Jev ~0.5 s → the display is approx. 10 s behind the video.
+- Sentences that get cut apart at the 8-s audio boundaries ("… Not us. The" | "newcomers get …") are put back together by `ai/transcript.ts`.
+- Jev scores every finished spoken sentence individually (cached per video → every sentence costs exactly once):
+  `timeline` and quotes thus also work with natural speech, not only with lexicon hits.
+- `ai/` now sets `coverage` itself (the fallback in `background.ts` then no longer applies) and reports `source: "local"` for the offline engine.
+- `ai/` is up to date with `main` (tone recognition for satire/irony from #11).
+
+**What you need to do:**
 - In `.env`: `STT_API_URL=https://openrouter.ai/api/v1/chat/completions`, `STT_API_KEY=<OpenRouter-Key>`, `STT_MODEL=google/gemini-2.5-flash` → `npm run build` → ↻
-- **Im Popup auf „cloud" stellen**, sonst läuft nur die lokale Engine (`DEFAULT_SETTINGS.mode` ist `"local"`). Für die Demo wichtig!
-- **Glue (UI-Dev):** Post-Cache in `background.ts` darf `kind: "draft"` nicht cachen (gleiche id, Text ändert sich beim Tippen) → `input.item.kind !== "draft"` in die Cache-Bedingung.
+- **Switch to "cloud" in the popup**, otherwise only the local engine runs (`DEFAULT_SETTINGS.mode` is `"local"`). Important for the demo!
+- **Glue (UI dev):** the post cache in `background.ts` must not cache `kind: "draft"` (same id, text changes while typing) → add `input.item.kind !== "draft"` to the cache condition.
 
-**Wichtig zu wissen:** Im Cloud-Modus geht Video-AUDIO an OpenRouter/Google und Text an TypeSafe. Der Key steckt in `dist/` → `dist/` nie weitergeben.
+**Good to know:** In cloud mode video AUDIO goes to OpenRouter/Google and text to TypeSafe. The key is inside `dist/` → never pass `dist/` on.
 
 ---
 
-## 2026-09-21 · Branch `video-stt` · Scraper + AI + Glue + UI · Videos werden wirklich gehört (Sprache → Text → Analyse, mit Fortschritt und Countdown)
+## 2026-09-21 · Branch `video-stt` · Scraper + AI + Glue + UI · Videos are really listened to (speech → text → analysis, with progress and countdown)
 
-**Was hat sich geändert:**
-- `scraper/video.ts` (neu, in `createScraper` für X und TikTok verdrahtet): Das laufende, sichtbare Video wird
-  über `video.captureStream()` abgehört — kein Tab-Capture, keine Extra-Berechtigung, kein Mikrofon. Alle 8 s
-  geht ein Stück als 16-kHz-Mono-WAV an `sink.onAudio()`. Stumme Stücke werden lokal verworfen (nichts gesendet);
-  max. 180 s pro Video.
-- `ai/stt.ts` (neu): `createTranscriber(config)` — zwei Endpunkt-Arten, per URL erkannt:
-  Whisper-artig (`…/audio/transcriptions`, exakte Zeitstempel) oder OpenAI-kompatibler Chat mit `input_audio`
-  (z. B. OpenRouter + `google/gemini-2.5-flash`). Liefert Text + Sätze mit Startzeit.
-- `extension/src/background.ts`: Message `fedo/transcribe`. `scripts/build.mjs`: `STT_API_URL`, `STT_API_KEY`,
-  `STT_MODEL` aus `.env` (Vorlage in `.env.example`); `host_permissions` enthält die STT-Origin.
-- `extension/src/content.ts`: Audio → STT → `TranscriptChunk`s (`source: "stt"`) → die bestehende
-  Transcript-Pipeline (`withLiveVideo`, Timeline, LIVE-Badge). Führt `VideoProgress` (gehörte Sekunden,
-  Gesamtlänge, ETA) und schließt das Transkript, wenn das Video endet.
-- `contracts/` (nur optional): `AudioChunk`, `TranscriptionResult`, `VideoProgress`, `Transcriber`,
+**What changed:**
+- `scraper/video.ts` (new, wired into `createScraper` for X and TikTok): The running, visible video is
+  listened to via `video.captureStream()` — no tab capture, no extra permission, no microphone. Every 8 s
+  a piece goes to `sink.onAudio()` as 16-kHz mono WAV. Silent pieces are discarded locally (nothing sent);
+  max. 180 s per video.
+- `ai/stt.ts` (new): `createTranscriber(config)` — two kinds of endpoint, detected by URL:
+  Whisper-like (`…/audio/transcriptions`, exact timestamps) or OpenAI-compatible chat with `input_audio`
+  (e.g. OpenRouter + `google/gemini-2.5-flash`). Delivers text + sentences with start time.
+- `extension/src/background.ts`: message `fedo/transcribe`. `scripts/build.mjs`: `STT_API_URL`, `STT_API_KEY`,
+  `STT_MODEL` from `.env` (template in `.env.example`); `host_permissions` contains the STT origin.
+- `extension/src/content.ts`: audio → STT → `TranscriptChunk`s (`source: "stt"`) → the existing
+  transcript pipeline (`withLiveVideo`, timeline, LIVE badge). Maintains `VideoProgress` (seconds heard,
+  total length, ETA) and closes the transcript when the video ends.
+- `contracts/` (optional only): `AudioChunk`, `TranscriptionResult`, `VideoProgress`, `Transcriber`,
   `ScraperSink.onAudio?`, `AnalyzerConfig.sttApiUrl/sttApiKey/sttModel`, `OverlayState.progress?`,
-  Message `fedo/transcribe`.
-- `ui/index.ts`: Fortschrittsleiste unter der Chip-Leiste („🎧 0:16 of 0:45 analyzed · full analysis in 34 s“,
-  tickt sekündlich), „Full video analyzed“ am Ende, „Unmute the video to analyze the speech“ bei stummem Player,
-  Zeitleiste „In the video“ im Why-Panel (rendert `result.timeline` aus PR #4/#5).
-- Playground: „Simulate live video“ zeigt jetzt Fortschritt, Countdown und Zeitleiste.
+  message `fedo/transcribe`.
+- `ui/index.ts`: progress bar under the chip bar ("🎧 0:16 of 0:45 analyzed · full analysis in 34 s",
+  ticks every second), "Full video analyzed" at the end, "Unmute the video to analyze the speech" for a muted player,
+  timeline "In the video" in the Why panel (renders `result.timeline` from PR #4/#5).
+- Playground: "Simulate live video" now shows progress, countdown and timeline.
 
-**Was musst du tun:**
-- `git pull --rebase origin main`, in `.env` eintragen (AI-Dev hat den OpenRouter-Key):
+**What you need to do:**
+- `git pull --rebase origin main`, enter in `.env` (the AI dev has the OpenRouter key):
   `STT_API_URL=https://openrouter.ai/api/v1/chat/completions`, `STT_API_KEY=sk-or-…`,
-  `STT_MODEL=google/gemini-2.5-flash` → `npm run build` → ↻ in chrome://extensions → Video auf X **mit Ton** abspielen.
-- **AI-Dev:** bitte einen echten Lauf gegen OpenRouter machen — die Keys auf dem Rechner, auf dem das gebaut wurde,
-  waren tot (401). Der Client ist gegen einen Nachbau beider API-Formate geprüft (Multipart + Auth, `input_audio` wav,
-  Zeitstempel), nicht gegen den echten Anbieter.
+  `STT_MODEL=google/gemini-2.5-flash` → `npm run build` → ↻ in chrome://extensions → play a video on X **with sound**.
+- **AI dev:** please do a real run against OpenRouter — the keys on the machine this was built on
+  were dead (401). The client has been checked against a replica of both API formats (multipart + auth, `input_audio` wav,
+  timestamps), not against the real provider.
 
-**Wichtig zu wissen:** Verifiziert in Chromium: eine 11-s-Sprachaufnahme in einem `<video>` ergibt zwei WAV-Stücke
-(0,0–7,9 s und 7,9–11,4 s, 16 kHz mono, −15,6 dB, `ended` korrekt). Ohne `STT_API_URL` passiert nichts Neues —
-Videos werden dann wie bisher nur über Text/Caption bewertet. Stummgeschaltete Player liefern in Chrome kein Audio
-→ die Leiste sagt das ehrlich, statt „sauber“ zu zeigen.
+**Good to know:** Verified in Chromium: an 11-s speech recording in a `<video>` yields two WAV pieces
+(0.0–7.9 s and 7.9–11.4 s, 16 kHz mono, −15.6 dB, `ended` correct). Without `STT_API_URL` nothing new happens —
+videos are then scored only via text/caption as before. Muted players deliver no audio in Chrome
+→ the bar says so honestly instead of showing "clean".
 
 ---
 
-## 2026-09-21 · `ai/real-feed-tuning` · AI · An 168 echten Posts getestet und nachgeschärft
+## 2026-09-21 · `ai/real-feed-tuning` · AI · Tested on 168 real posts and sharpened
 
-**Was hat sich geändert:**
-- Jev bewertet jetzt zusätzlich jeden Satz einzeln (parallel, keine Zusatz-Latenz): Der Satz mit dem höchsten Score wird das
-  `evidence`-Zitat. Treffer ohne Zitat: vorher ~85 %, jetzt ~10 %. Signale, die sich in keinem Satz wiederfinden, werden gedämpft.
-- Weniger Fehlalarme: Hashtag-only-Posts, Kursticker, neutrale Nachrichtenmeldungen. Verteilung auf echtem Feed:
-  61 % none, 27 % low, 11 % medium, 1 % high. Latenz p50 ~0,4 s.
-- `evidence` kann jetzt ein ganzer Satz sein (max. 90 Zeichen, mit „…“), nicht mehr nur 2–4 Wörter.
+**What changed:**
+- Jev now additionally scores every sentence individually (in parallel, no extra latency): the sentence with the highest score becomes the
+  `evidence` quote. Hits without a quote: previously ~85 %, now ~10 %. Signals that are not found in any sentence are dampened.
+- Fewer false alarms: hashtag-only posts, stock tickers, neutral news reports. Distribution on a real feed:
+  61 % none, 27 % low, 11 % medium, 1 % high. Latency p50 ~0.4 s.
+- `evidence` can now be a whole sentence (max. 90 characters, with "…"), no longer just 2–4 words.
 
-**Was musst du tun:**
+**What you need to do:**
 - `git pull --rebase origin main`, `npm run build`, ↻
-- **UI-Dev:** (1) `evidence` braucht Platz für ~90 Zeichen / Umbruch. (2) Bei stark aufgeladenen Posts kommen 5–8 Signale ≥ 50 %.
-  Empfehlung: die 3–4 stärksten als Chips, Rest hinter „+n“. Mehrere Signale können dasselbe Zitat haben → nur einmal anzeigen.
-  (3) `result.timeline` + `result.overall` kommen fertig aus der AI, müssen nicht aus Score-Sprüngen nachgebaut werden.
-## 2026-09-21 · Branch `feed-diet` · Contracts + Glue + UI · Feed-Diet-Dashboard, Live-Settings, Coverage
-
-**Was hat sich geändert:**
-- `contracts/` (alles optional, nichts Breaking): `Settings.mode` („local“/„cloud“) + `Settings.calmMode`,
-  `AnalysisResult.coverage` („full“/„text_only“/„insufficient“), `source: "local"` zusätzlich zu „mock“,
-  `FeedItem.kind` („post“/„draft“ für den Compose-Spiegel), `ExposureRecord`/`FeedStats`/`StatsWindow`,
-  Messages `fedo/getStats`, `fedo/getRecords`, `fedo/clearStats`, `RESEARCH` + `SIGNAL_GROUPS` in `signals.ts`.
-- `extension/src/background.ts`: schreibt pro analysiertem Post einen Datensatz nach `chrome.storage.local`
-  (dedupliziert per Item-ID, Drafts nie), aggregiert Statistiken pro Zeitfenster, setzt den Badge-Zähler
-  (hohe Intensität in dieser Sitzung), wählt den Analyzer nach `Settings.mode`, setzt `coverage` als Fallback.
-- `extension/src/content.ts`: Popup-Änderungen gelten sofort (kein Tab-Reload), Sequenz-Guard für
-  Transcript-Antworten (alte Antworten überschreiben keine neuen mehr).
-- `ui/popup/`: das Dashboard — Zeitfenster, Kennzahlen, Donut nach Stufe, Top-Techniken, Top-Quellen,
-  Presets statt Slider, Calm Mode, Lokal/Cloud, Export, Reset.
-- `ui/index.ts`: Gesamtstufen-Badge, Coverage-Zustände (kein grüner Haken ohne Text), Calm Mode dimmt
-  (nie verstecken, „Show post“), Research-Zeile im Why-Panel.
-- `scripts/build.mjs`: `host_permissions` nur noch die Jev-Origin (statt `https://*/*`).
-- `npm run check` läuft jetzt auch `npm run eval` (10 Regressionsfälle). `DEMO.md` neu.
-
-**Was musst du tun:**
-- `git pull --rebase origin main` (nachdem `feed-diet` gemerged ist), `npm run build`, in chrome://extensions auf ↻.
-- **AI-Dev:** `source: "local"` statt „mock“ setzen und `coverage` in `analyzeLocally` befüllen (dann fliegt
-  der Fallback im Glue raus). `kind: "draft"` bei der Analyse nicht anders behandeln, das Glue loggt Drafts nur nicht.
-- **Scraper-Dev:** Compose-Box (`[data-testid="tweetTextarea_0"]`) als `FeedItem` mit `kind: "draft"` liefern, wenn Zeit ist.
-
-**Wichtig zu wissen:** Verifiziert in Chromium mit geladener Extension: 10 Posts → 10 Datensätze, doppelte Analyse
-zählt einmal, Badge = Anzahl „high“. Alte Ergebnisse ohne `overall` bekommen eine abgeleitete Stufe.
+- **UI dev:** (1) `evidence` needs room for ~90 characters / line wrapping. (2) For heavily charged posts 5–8 signals ≥ 50 % arrive.
+  Recommendation: the 3–4 strongest as chips, the rest behind "+n". Several signals can have the same quote → show it only once.
+  (3) `result.timeline` + `result.overall` come ready-made from the AI, they do not have to be rebuilt from score jumps.
 
 ---
 
-## 2026-09-21 · `ai/live-video` · AI · Live-Video: gedrosselte Analyse + Timeline
+## 2026-09-21 · Branch `feed-diet` · Contracts + Glue + UI · Feed diet dashboard, live settings, coverage
 
-**Was hat sich geändert:**
-- Transcript-Updates werden in `ai/` pro Video gebündelt: max. 1 Request gleichzeitig / alle 750 ms, immer nur das neueste
-  Transkript. Der Glue darf weiter bei JEDEM Chunk `analyze` rufen, Ergebnisse kommen nie in falscher Reihenfolge an.
-- Jedes Video-Ergebnis hat `timeline` (siehe Contract-Eintrag) und `partial` (`true`, solange der letzte Chunk nicht final ist).
+**What changed:**
+- `contracts/` (everything optional, nothing breaking): `Settings.mode` ("local"/"cloud") + `Settings.calmMode`,
+  `AnalysisResult.coverage` ("full"/"text_only"/"insufficient"), `source: "local"` in addition to "mock",
+  `FeedItem.kind` ("post"/"draft" for the compose mirror), `ExposureRecord`/`FeedStats`/`StatsWindow`,
+  messages `fedo/getStats`, `fedo/getRecords`, `fedo/clearStats`, `RESEARCH` + `SIGNAL_GROUPS` in `signals.ts`.
+- `extension/src/background.ts`: writes one record per analyzed post to `chrome.storage.local`
+  (deduplicated by item ID, never drafts), aggregates statistics per time window, sets the badge counter
+  (high intensity in this session), picks the analyzer according to `Settings.mode`, sets `coverage` as a fallback.
+- `extension/src/content.ts`: popup changes apply immediately (no tab reload), sequence guard for
+  transcript responses (old responses no longer overwrite new ones).
+- `ui/popup/`: the dashboard — time windows, metrics, donut by level, top techniques, top sources,
+  presets instead of a slider, Calm Mode, local/cloud, export, reset.
+- `ui/index.ts`: overall level badge, coverage states (no green tick without text), Calm Mode dims
+  (never hides, "Show post"), research line in the Why panel.
+- `scripts/build.mjs`: `host_permissions` now only the Jev origin (instead of `https://*/*`).
+- `npm run check` now also runs `npm run eval` (10 regression cases). `DEMO.md` new.
 
-**Was musst du tun:**
+**What you need to do:**
+- `git pull --rebase origin main` (after `feed-diet` has been merged), `npm run build`, click ↻ in chrome://extensions.
+- **AI dev:** set `source: "local"` instead of "mock" and fill `coverage` in `analyzeLocally` (then the
+  fallback in the glue gets removed). Do not treat `kind: "draft"` differently in the analysis, the glue just does not log drafts.
+- **Scraper dev:** deliver the compose box (`[data-testid="tweetTextarea_0"]`) as a `FeedItem` with `kind: "draft"`, if there is time.
+
+**Good to know:** Verified in Chromium with the extension loaded: 10 posts → 10 records, a duplicate analysis
+counts once, badge = number of "high". Old results without `overall` get a derived level.
+
+---
+
+## 2026-09-21 · `ai/live-video` · AI · Live video: throttled analysis + timeline
+
+**What changed:**
+- Transcript updates are bundled per video in `ai/`: max. 1 request at a time / every 750 ms, always only the newest
+  transcript. The glue may keep calling `analyze` on EVERY chunk, results never arrive in the wrong order.
+- Every video result has `timeline` (see the contract entry) and `partial` (`true` as long as the last chunk is not final).
+
+**What you need to do:**
 - `git pull --rebase origin main`, `npm run build`, ↻
-- **Scraper-Dev:** `sink.onTranscript({ itemId, text, isFinal, t, source })` liefern, pro fertigem Satz `isFinal: true`,
-  `t` = Sekunden seit Videostart. Interim-Chunks (`isFinal: false`) sind erlaubt und billig. So sieht es aus: `npx tsx ai/dev/run-live.ts`
-- **UI-Dev:** `result.timeline` + `result.partial` für die Live-Ansicht.
+- **Scraper dev:** deliver `sink.onTranscript({ itemId, text, isFinal, t, source })`, per finished sentence `isFinal: true`,
+  `t` = seconds since video start. Interim chunks (`isFinal: false`) are allowed and cheap. This is what it looks like: `npx tsx ai/dev/run-live.ts`
+- **UI dev:** `result.timeline` + `result.partial` for the live view.
 
-**Wichtig zu wissen:** Speech-to-Text für Videos OHNE Untertitel ist noch offen. Das braucht Tab-Audio (`chrome.tabCapture`)
-und gehört damit in Glue/Scraper, nicht in `ai/`. Mit TikTok-Captions funktioniert der Live-Pfad schon komplett.
+**Good to know:** Speech-to-text for videos WITHOUT subtitles is still open. That needs tab audio (`chrome.tabCapture`)
+and therefore belongs in glue/scraper, not in `ai/`. With TikTok captions the live path already works completely.
 
 ---
 
-## 2026-09-21 · `contracts/timeline` · Contracts (AI → UI) · Neues optionales Feld `AnalysisResult.timeline` für Videos
+## 2026-09-21 · `contracts/timeline` · Contracts (AI → UI) · New optional field `AnalysisResult.timeline` for videos
 
-**Was hat sich geändert:**
-- `contracts/types.ts`: `AnalysisResult.timeline?: TimelineEvent[]` mit `{ t, key, score, evidence? }`
-  = erkannte Techniken im gesprochenen Text mit Zeitstempel (Sekunden), chronologisch. Wächst, während das Video läuft.
-- `contracts/fixtures.ts`: Ergebnis zu `tiktok:2001` hat eine Beispiel-Timeline.
+**What changed:**
+- `contracts/types.ts`: `AnalysisResult.timeline?: TimelineEvent[]` with `{ t, key, score, evidence? }`
+  = detected techniques in the spoken text with timestamp (seconds), chronological. Grows while the video is playing.
+- `contracts/fixtures.ts`: the result for `tiktok:2001` has an example timeline.
 
-**Was musst du tun:**
+**What you need to do:**
 - `git pull --rebase origin main`
-- **UI-Dev:** für die Live-Video-Ansicht nutzbar („00:04 ⚠ Fear framing“): `SIGNALS[event.key].label` + `event.t` formatieren.
-  Feld ist optional → bei Posts und bei `undefined` nichts anzeigen.
-- Scraper-Dev: `TranscriptChunk.t` (Sekunden seit Videostart) sauber setzen, daraus entstehen die Zeitstempel.
+- **UI dev:** usable for the live video view ("00:04 ⚠ Fear framing"): format `SIGNALS[event.key].label` + `event.t`.
+  The field is optional → show nothing for posts and for `undefined`.
+- Scraper dev: set `TranscriptChunk.t` (seconds since video start) cleanly, the timestamps are derived from it.
 
-**Wichtig zu wissen:** Kein Breaking Change (Feld ist optional).
+**Good to know:** No breaking change (the field is optional).
 
 ---
 
-## 2026-09-21 · `ai/llm-openrouter` · AI · Echte Analyse mit Jev (TypeSafe) über OpenRouter
+## 2026-09-21 · `ai/llm-openrouter` · AI · Real analysis with Jev (TypeSafe) via OpenRouter
 
-**Was hat sich geändert:**
-- `ai/jev.ts` spricht jetzt die echte Jev-API (OpenRouter Decisions API): eine Ja/Nein-Frage pro Signal → Wahrscheinlichkeit.
-  ~0,3–1 s pro Post. Jev-Scores werden mit der lokalen Engine fusioniert (weniger Fehlalarme), Evidence-Zitate kommen lokal.
-- Fehler, Timeout oder leeres Guthaben → automatisch Ergebnis der lokalen Engine (`source: "mock"`), nie ein Error im Feed.
-- Alternative: beliebiges Chat-Modell, wenn `JEV_API_URL` auf `/chat/completions` endet (`ai/llm.ts`).
+**What changed:**
+- `ai/jev.ts` now talks to the real Jev API (OpenRouter Decisions API): one yes/no question per signal → probability.
+  ~0.3–1 s per post. Jev scores are fused with the local engine (fewer false alarms), evidence quotes come locally.
+- Error, timeout or empty credit → automatically the result of the local engine (`source: "mock"`), never an error in the feed.
+- Alternative: any chat model, if `JEV_API_URL` ends in `/chat/completions` (`ai/llm.ts`).
 
-**Was musst du tun:**
+**What you need to do:**
 - `git pull --rebase origin main`
-- Für echte Analyse in `.env` (nie committen!): `FEDO_ANALYZER=jev`, `JEV_API_URL=https://openrouter.ai/api/alpha/decisions`,
-  `JEV_API_KEY=<OpenRouter-Key, beim AI-Dev erfragen>` → `npm run build` → in chrome://extensions auf ↻
-- Ohne `.env` läuft alles wie bisher mit der lokalen Engine.
+- For real analysis in `.env` (never commit!): `FEDO_ANALYZER=jev`, `JEV_API_URL=https://openrouter.ai/api/alpha/decisions`,
+  `JEV_API_KEY=<OpenRouter-Key, ask the AI dev>` → `npm run build` → click ↻ in chrome://extensions
+- Without `.env` everything runs as before with the local engine.
 
-**Wichtig zu wissen:** Der Key wird beim Build in `dist/background.js` eingebettet → `dist/` niemals weitergeben oder committen
-(ist in `.gitignore`). Im Jev-Modus gehen Post-Texte an OpenRouter/TypeSafe.
-
----
-
-## 2026-09-21 · `ai/local-engine` · AI · Lokale Scoring-Engine ersetzt die Keyword-Heuristik
-
-**Was hat sich geändert:**
-- `ai/` bewertet Posts jetzt mit einer echten lokalen Engine (EN + DE): gewichtete Formulierungen pro Signal,
-  Stilmerkmale, Kontextregeln, `evidence`-Zitat pro Signal, `explanation` und `overall` (Gesamtstufe).
-- Modus `mock` = diese Engine (offline, kein API-Key). Modus `jev` nutzt sie für Evidence und als Fallback bei API-Fehlern.
-- `callJev()` ist weiterhin ein Skelett (TypeSafe-Format fehlt noch).
-
-**Was musst du tun:**
-- `git pull --rebase origin main`, `npm run build`, in chrome://extensions auf ↻
-- Falsch bewerteter Post gesehen? Text an den AI-Dev schicken → wird Testfall in `ai/dev/cases.ts`.
-
-**Wichtig zu wissen:** Ergebnisse haben weiterhin `source: "mock"`, sind aber keine Platzhalter mehr.
-Die simulierte Latenz ist weg → `pending` ist im echten Feed nur noch sehr kurz sichtbar.
+**Good to know:** The key is embedded into `dist/background.js` at build time → never pass on or commit `dist/`
+(it is in `.gitignore`). In Jev mode post texts go to OpenRouter/TypeSafe.
 
 ---
 
-## 2026-09-21 · `contracts/overall-intensity` · Contracts (AI → UI) · Neues optionales Feld `AnalysisResult.overall`
+## 2026-09-21 · `ai/local-engine` · AI · Local scoring engine replaces the keyword heuristic
 
-**Was hat sich geändert:**
+**What changed:**
+- `ai/` now scores posts with a real local engine (EN + DE): weighted phrasings per signal,
+  style features, context rules, `evidence` quote per signal, `explanation` and `overall` (overall level).
+- Mode `mock` = this engine (offline, no API key). Mode `jev` uses it for evidence and as a fallback on API errors.
+- `callJev()` is still a skeleton (the TypeSafe format is still missing).
+
+**What you need to do:**
+- `git pull --rebase origin main`, `npm run build`, click ↻ in chrome://extensions
+- Seen a wrongly scored post? Send the text to the AI dev → it becomes a test case in `ai/dev/cases.ts`.
+
+**Good to know:** Results still have `source: "mock"`, but are no longer placeholders.
+The simulated latency is gone → `pending` is only visible very briefly in the real feed.
+
+---
+
+## 2026-09-21 · `contracts/overall-intensity` · Contracts (AI → UI) · New optional field `AnalysisResult.overall`
+
+**What changed:**
 - `contracts/types.ts`: `AnalysisResult.overall?: { level: "none" | "low" | "medium" | "high"; score: number }`
-  = alle Signale zu EINER Stufe pro Post zusammengefasst (Typen `IntensityLevel`, `OverallIntensity`).
-- `contracts/fixtures.ts`: alle `FIXTURE_RESULTS` haben Beispielwerte für `overall`.
+  = all signals summarised into ONE level per post (types `IntensityLevel`, `OverallIntensity`).
+- `contracts/fixtures.ts`: all `FIXTURE_RESULTS` have example values for `overall`.
 
-**Was musst du tun:**
+**What you need to do:**
 - `git pull --rebase origin main`
-- **UI-Dev:** `result.overall` als Badge pro Post darstellen (z. B. Farbe nach `level`). Das Feld ist
-  optional → bei `undefined` einfach kein Badge zeigen. Im Playground sind die Werte über die Fixtures schon da.
-- Scraper-Dev: nichts.
+- **UI dev:** display `result.overall` as a badge per post (e.g. colour by `level`). The field is
+  optional → for `undefined` simply show no badge. In the playground the values are already there via the fixtures.
+- Scraper dev: nothing.
 
-**Wichtig zu wissen:** Kein Breaking Change (Feld ist optional). Wording: Die Stufe beschreibt, wie stark
-Überzeugungs-TECHNIKEN eingesetzt werden, nicht ob etwas wahr oder „gefährlich“ ist. `political_content` allein ergibt immer `none`.
+**Good to know:** No breaking change (the field is optional). Wording: the level describes how strongly
+persuasion TECHNIQUES are used, not whether something is true or "dangerous". `political_content` alone always yields `none`.
 
 ---
 
-## 2026-09-21 · `main @ e9a7de5` · Alle Paths · Grundgerüst steht (v0.1.0)
+## 2026-09-21 · `main @ e9a7de5` · All paths · Scaffolding is in place (v0.1.0)
 
-Das Projekt ist aufgesetzt. Alle drei Paths können **ab sofort parallel und unabhängig**
-voneinander arbeiten — niemand muss auf jemanden warten.
+The project is set up. All three paths can work **in parallel and independently** of each other
+**from now on** — nobody has to wait for anybody.
 
-**Was drin ist:**
-- `contracts/` — die gemeinsame Schnittstelle: Typen, die drei Interfaces (`Scraper`,
-  `Analyzer`, `OverlayRenderer`), Signal-Definitionen, Fixtures, Messaging.
-- `scraper/` — X funktioniert bereits (`article[data-testid="tweet"]` + MutationObserver).
-  TikTok-Selektoren sind **best effort** und müssen im DevTools verifiziert werden.
-- `ai/` — läuft aktuell auf dem **Mock-Analyzer** (Keyword-Heuristik). `jev.ts` ist ein
-  **Skelett**: nur `callJev()` muss an die echte TypeSafe-Jev-API angepasst werden.
-- `ui/` — Overlay im Shadow DOM (`pending` / `done` / `error`), Popup, Playground-Fake-Feed.
-- `extension/src/` — der Glue, der alles verdrahtet. Bleibt bewusst dünn.
-- CI + `npm run check` (Typecheck + Boundaries + Build) als Gate vor jedem Push.
-- Doku: `README.md` (Überblick), `START_HERE.md` (vollständiges Onboarding).
+**What's in it:**
+- `contracts/` — the shared interface: types, the three interfaces (`Scraper`,
+  `Analyzer`, `OverlayRenderer`), signal definitions, fixtures, messaging.
+- `scraper/` — X already works (`article[data-testid="tweet"]` + MutationObserver).
+  TikTok selectors are **best effort** and have to be verified in DevTools.
+- `ai/` — currently runs on the **mock analyzer** (keyword heuristic). `jev.ts` is a
+  **skeleton**: only `callJev()` has to be adapted to the real TypeSafe Jev API.
+- `ui/` — overlay in the Shadow DOM (`pending` / `done` / `error`), popup, playground fake feed.
+- `extension/src/` — the glue that wires everything together. Deliberately stays thin.
+- CI + `npm run check` (typecheck + boundaries + build) as a gate before every push.
+- Docs: `README.md` (overview), `START_HERE.md` (complete onboarding).
 
-**Was musst du tun:**
+**What you need to do:**
 ```bash
 git pull --rebase origin main
-npm install        # beim ersten Mal nötig
-npm run build      # → dist/, dann in chrome://extensions "Load unpacked"
+npm install        # needed the first time
+npm run build      # → dist/, then "Load unpacked" in chrome://extensions
 ```
 
-**Wichtig zu wissen:**
-- Die Analyse ist noch **Mock**, nicht echt. Ergebnisse sind Platzhalter, aber im richtigen Format.
-- `contracts/` bitte **nicht eigenmächtig ändern** — vorschlagen, der Mensch spricht es mit dem Team ab.
-  Ausnahme: neue Fixtures in `fixtures.ts` ergänzen ist ohne Absprache okay.
-- Arbeite nur im Ordner deiner Rolle. `npm run check:boundaries` schlägt sonst fehl.
+**Good to know:**
+- The analysis is still a **mock**, not real. Results are placeholders, but in the right format.
+- Please **do not change `contracts/` on your own** — propose it, the human coordinates it with the team.
+  Exception: adding new fixtures in `fixtures.ts` is okay without coordination.
+- Only work in the folder of your role. Otherwise `npm run check:boundaries` fails.
 
-**Nächste offene Punkte** stehen pro Rolle in `START_HERE.md`, Abschnitt 8.
+**Next open points** are listed per role in `START_HERE.md`, section 8.
 
 ---
 
 <!--
-Vorlage für den nächsten Eintrag — oben einfügen, direkt unter den Spielregeln:
+Template for the next entry — insert at the top, directly below the rules:
 
-## JJJJ-MM-TT · `main @ <hash>` · <Scraper|AI|UI|Glue> · <Titel in einem Satz>
+## YYYY-MM-DD · `main @ <hash>` · <Scraper|AI|UI|Glue> · <title in one sentence>
 
-**Was hat sich geändert:**
+**What changed:**
 - ...
 
-**Was musst du tun:**
+**What you need to do:**
 - `git pull --rebase origin main`
-- (nur wenn package.json betroffen war: `npm install`)
-- `npm run build` + in chrome://extensions auf ↻
+- (only if package.json was affected: `npm install`)
+- `npm run build` + click ↻ in chrome://extensions
 
-**Wichtig zu wissen:** (Breaking Changes, neue Contracts, Stolperfallen — sonst weglassen)
+**Good to know:** (breaking changes, new contracts, pitfalls — otherwise leave out)
 -->
