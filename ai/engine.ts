@@ -94,6 +94,9 @@ function contextRules(scores: Map<SignalKey, number>, segments: Segment[]): void
     scores.set("factual_claim", get("factual_claim") * 0.35);
   }
 
+  // "20% off" is a price, not a claim about the world.
+  if (get("commercial_persuasion") >= 0.5) scores.set("factual_claim", get("factual_claim") * 0.4);
+
   // Political persuasion = explicit calls (own cues) OR political topic pushed with emotional rhetoric.
   const rhetoric = Math.max(...RHETORIC.map(get));
   scores.set("political_persuasion", noisyOr([get("political_persuasion"), get("political_content") * rhetoric * 0.9]));

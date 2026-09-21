@@ -43,9 +43,13 @@ async function init() {
   document.body.classList.remove("loading");
   const settings = await send({ type: "fedo/getSettings" }); // needs the extension context
   $<HTMLInputElement>("enabled").checked = settings.enabled;
+  $<HTMLInputElement>("calmMode").checked = !!settings.calmMode;
+  document.querySelectorAll<HTMLInputElement>('input[name="mode"]').forEach((r) => (r.checked = r.value === (settings.mode ?? "local")));
   renderThreshold(settings.minScore);
 }
 
+$("calmMode").addEventListener("change", (e) => send({ type: "fedo/setSettings", settings: { calmMode: (e.target as HTMLInputElement).checked } }));
+document.querySelectorAll<HTMLInputElement>('input[name="mode"]').forEach((r) => r.addEventListener("change", () => send({ type: "fedo/setSettings", settings: { mode: r.value as "local" | "cloud" } })));
 $("enabled").addEventListener("change", (e) => send({ type: "fedo/setSettings", settings: { enabled: (e.target as HTMLInputElement).checked } }));
 minScore.addEventListener("input", () => renderThreshold(1.2 - Number(minScore.value)));
 minScore.addEventListener("change", () => send({ type: "fedo/setSettings", settings: { minScore: Math.round((1.2 - Number(minScore.value)) * 100) / 100 } }));

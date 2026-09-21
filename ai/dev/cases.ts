@@ -51,10 +51,11 @@ export const CASES: Case[] = [
     level: ["none"],
   },
   {
+    // "parasites" / "rats" about animals must not count as dehumanizing. An invitation to visit IS mild promotion → "low" is fine.
     item: post("Our zoo's new exhibit shows how parasites and rats survive in cities. Open daily!"),
     expect: [],
-    reject: ["dehumanizing_language"],
-    level: ["none"],
+    reject: ["dehumanizing_language", "scapegoating", "fear_framing"],
+    level: ["none", "low"],
   },
   {
     item: post("These migrants are vermin. They are taking our jobs and destroying our way of life. Vote them out before it's too late!"),

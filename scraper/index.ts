@@ -5,6 +5,7 @@
 import type { Platform, Scraper } from "@contracts";
 import { createXScraper } from "./platforms/x";
 import { createTikTokScraper } from "./platforms/tiktok";
+import { watchVideos } from "./video";
 
 export function detectPlatform(hostname: string): Platform | null {
   if (/(^|\.)(x|twitter)\.com$/.test(hostname)) return "x";
@@ -13,10 +14,17 @@ export function detectPlatform(hostname: string): Platform | null {
 }
 
 export function createScraper(platform: Platform): Scraper {
-  switch (platform) {
-    case "x":
-      return createXScraper();
-    case "tiktok":
-      return createTikTokScraper();
-  }
+  const posts = platform === "x" ? createXScraper() : createTikTokScraper();
+  // Posts come from the platform scraper; the audio of the playing video comes from the shared watcher.
+  return {
+    platform,
+    start(sink) {
+      const stopPosts = posts.start(sink);
+      const stopVideos = watchVideos(sink);
+      return () => {
+        stopPosts();
+        stopVideos();
+      };
+    },
+  };
 }

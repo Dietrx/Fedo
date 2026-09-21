@@ -4,14 +4,16 @@
  * Rule: no `chrome.*`, no `document` in here → everything runs in Node via `npm run dev:ai`.
  */
 import type { Analyzer, AnalyzerConfig } from "@contracts";
+import { withCoverage } from "./coverage";
 import { createMockAnalyzer } from "./mock";
 import { createJevAnalyzer } from "./jev";
 import { withLiveVideo } from "./live";
 import { createLlmAnalyzer, isChatCompletionsUrl } from "./llm";
+export { createTranscriber } from "./stt";
 
-/** Every analyzer gets the live-video wrapper: throttling + coalescing of transcript updates, plus the timeline. */
+/** Every analyzer gets the live-video wrapper (throttling + coalescing of transcript updates, timeline) and `coverage`. */
 export function createAnalyzer(config: AnalyzerConfig): Analyzer {
-  return withLiveVideo(createBaseAnalyzer(config));
+  return withCoverage(withLiveVideo(createBaseAnalyzer(config)));
 }
 
 function createBaseAnalyzer(config: AnalyzerConfig): Analyzer {

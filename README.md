@@ -2,8 +2,10 @@
 
 > **Neu im Projekt?** Sag deinem Claude: *„Lies START_HERE.md, ich bin der <Scraper|AI|UI>-Dev.“*
 
-Chrome-Extension, die live im X- und TikTok-Feed Überzeugungs- und Manipulationstechniken markiert
-(Fear Framing, Us vs. Them, unbelegte Behauptungen, AI Slop, …). Sie bewertet **Techniken**, nicht Meinungen.
+Chrome-Extension, die live im Feed Überzeugungs- und Manipulationstechniken markiert
+(Fear Framing, Us vs. Them, unbelegte Behauptungen, AI Slop, …) und im Popup zeigt, was der eigene Feed
+einem serviert („Feed Diet“). Sie bewertet **Techniken**, nicht Meinungen. **X läuft, TikTok ist experimentell.**
+Demo-Ablauf und Fallbacks: `DEMO.md`.
 
 ```
  x.com / tiktok.com                     Background Service Worker
@@ -42,14 +44,16 @@ wenn ein Path direkt aus einem anderen importiert. Erlaubt sind nur der eigene O
 ### Path 1: Scraper (`scraper/`)
 - `platforms/x.ts`: X-Posts über `article[data-testid="tweet"]` + MutationObserver (funktioniert schon)
 - `platforms/tiktok.ts`: TikTok-Selektoren (best effort, **im DevTools prüfen**)
-- Nächste Schritte: GraphQL-`HomeTimeline`-Interception (MAIN-World-Fetch-Patch), TikTok-Captions → `sink.onTranscript()`, aktuell laufendes Video erkennen
+- `video.ts`: hört das laufende Video ab (`captureStream()` → 8-s-WAV-Stücke → `sink.onAudio()`), plattformübergreifend
+- Nächste Schritte: GraphQL-`HomeTimeline`-Interception (MAIN-World-Fetch-Patch), TikTok-Captions → `sink.onTranscript()`
 
 ### Path 2: AI (`ai/`)
 - `mock.ts`: Keyword-Heuristik, damit Scraper und UI sofort echte Ergebnisse sehen
 - `jev.ts`: **Skelett**. Nur `callJev()` muss an die echte TypeSafe-Jev-API angepasst werden, dann `FEDO_ANALYZER=jev` in `.env`
 - `state.ts`: baut aus einem Post den kompakten Text-State für Jev
 - Regel: kein `chrome.*`, kein `document`, damit alles in Node testbar bleibt
-- Nächste Schritte: Jev anbinden, Streaming-STT für Video-Audio, Vision/Deepfake-Zweig für `synthetic_media`
+- `stt.ts`: Sprache → Text für Video-Audio (Whisper-artig oder Chat-Modell mit `input_audio`), Konfiguration über `STT_*` in `.env`
+- Nächste Schritte: Vision/Deepfake-Zweig für `synthetic_media`
 
 ### Path 3: UI (`ui/`)
 - `index.ts` + `styles.ts`: Overlay in Shadow DOM (X-CSS kann nicht reinfunken), Zustände `pending` / `done` / `error`, „Why?“-Panel, `LIVE`-Badge für Videos
