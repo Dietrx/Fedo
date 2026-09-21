@@ -104,6 +104,24 @@ export const OVERLAY_CSS = /* css */ `
   .log .t { min-width: 40px; }
   .log .k { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
   .log q { color: var(--ink-muted); font-style: italic; quotes: "“" "”"; }
+  /* HUD: one fixed panel top-right that follows the post in view */
+  :host(.hud) { position: fixed; top: 12px; right: 12px; z-index: 2147483000; width: 300px; margin: 0; }
+  .hud { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); overflow: hidden; }
+  .hud .prog { border-radius: 0; height: 3px; }
+  .hud .top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: 8px 8px 0 12px; }
+  .hud .brand { font: 700 11px/16px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink); }
+  .hud .brand span { color: var(--ink-muted); font-weight: 600; }
+  .hud .dash { height: 28px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: var(--radius-pill); background: transparent; color: var(--ink); font: 600 11px/16px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+  .hud .dash:hover { background: var(--action); color: var(--on-action); border-color: var(--action); }
+  .hud .dash:focus-visible, .hud .strip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .hud .who { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: 6px 12px 0; font: 600 12px/16px var(--font-sans); white-space: nowrap; overflow: hidden; }
+  .hud .who span { color: var(--ink-muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; }
+  .hud .strip { padding: 2px 8px 6px 12px; min-height: 30px; border-radius: 0; }
+  .hud .idle { padding: 10px 12px 12px; color: var(--ink-muted); font: 500 12px/16px var(--font-sans); }
+  .hud .body { max-height: 60vh; overflow-y: auto; }
+  .hud .panel { margin: 0; border: 0; border-top: 1px solid var(--hairline); border-radius: 0; animation: none; }
+  .hud .panel .c { display: none; }
+
   /* AI slop cover: over the whole post, until the reader dismisses it */
   .cover { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2);
            padding: var(--space-4); background: var(--ground); border-radius: var(--radius-lg); border: 1px solid var(--hairline); text-align: center; animation: fade .16s ease-out; }

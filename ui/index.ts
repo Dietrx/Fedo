@@ -7,8 +7,8 @@
  *   colour = category of the technique, fill weight = strength, red = LIVE only, always a label next to a colour.
  */
 import { DEFAULT_SETTINGS, SIGNALS, type AnalysisResult, type OverlayRenderer, type OverlayState, type Signal } from "@contracts";
-import { loadPrefs, onStorageChange, bumpStats, DEFAULT_PREFS, type UiPrefs } from "./prefs";
-import { appendLog, entryFrom } from "./log";
+import { loadPrefs, onStorageChange, bumpStats, DEFAULT_PREFS, type Layout, type UiPrefs } from "./prefs";
+import { appendLog, authorFrom, entryFrom } from "./log";
 import { GLYPH, groupOf, hostIsDark, resolveTheme, type ThemeId } from "./theme";
 import { OVERLAY_CSS } from "./styles";
 
@@ -18,6 +18,10 @@ export interface OverlayOptions {
   theme?: ThemeId;
   /** Count analyzed posts into the popup readout. Default true inside the extension. */
   stats?: boolean;
+  /** Force a layout (playground). Default: the popup's setting; "hud" = one fixed panel top-right, "strip" = a line under each post. */
+  layout?: Layout;
+  /** Where the HUD's Dashboard button goes. Default: the extension's dashboard.html. */
+  dashboardUrl?: string;
 }
 
 interface Entry {
@@ -44,8 +48,59 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
   let forcedTheme = opts.theme;
   const countStats = opts.stats ?? true;
   const entries = new Map<string, Entry>();
+  const layout = (): Layout => opts.layout ?? prefs.layout;
 
   const theme = (): ThemeId => forcedTheme ?? resolveTheme(prefs.theme, prefs.colorBlind, hostIsDark());
+
+  // ── HUD: one fixed panel that follows the post most in view ─────────────────────────
+  let hud: { host: HTMLElement; root: ShadowRoot } | undefined;
+  let currentId: string | undefined;
+  const ratio = new Map<string, number>();
+  const io = typeof IntersectionObserver === "function"
+    ? new IntersectionObserver((recs) => {
+        for (const r of recs) { const id = (r.target as HTMLElement).dataset.fedoId; if (id) ratio.set(id, r.isIntersecting ? r.intersectionRatio : 0); }
+        let best: string | undefined, bestR = 0;
+        for (const [id, x] of ratio) if (x > bestR) { best = id; bestR = x; }
+        if (best !== currentId) { currentId = best; renderHud(); }
+      }, { threshold: [0, 0.25, 0.5, 0.75, 1] })
+    : undefined;
+
+  function ensureHud() {
+    if (layout() !== "hud") { hud?.host.remove(); hud = undefined; return; }
+    if (hud?.host.isConnected) return;
+    const host = document.createElement("fedo-hud");
+    host.className = "hud";
+    for (const ev of ["click", "mousedown", "pointerdown", "touchstart", "wheel"]) host.addEventListener(ev, (x) => x.stopPropagation());
+    const root = host.attachShadow({ mode: "open" });
+    root.innerHTML = `<style>${OVERLAY_CSS}</style><div class="hud"><div class="prog"><i></i></div>
+      <div class="top"><span class="brand">Fedo <span data-count></span></span><button class="dash" data-dash>Dashboard ↗</button></div>
+      <div class="who" data-who></div><div class="view"></div></div>`;
+    root.querySelector("[data-dash]")!.addEventListener("click", () => {
+      const url = opts.dashboardUrl ?? (typeof chrome !== "undefined" && chrome.runtime?.getURL ? chrome.runtime.getURL("dashboard.html") : undefined);
+      const w = url ? window.open(url, "_blank", "noopener") : null;
+      if (!w) { const b = root.querySelector("[data-dash]")!; b.textContent = "Use the Fedo icon"; setTimeout(() => (b.textContent = "Dashboard ↗"), 1800); }
+    });
+    document.body.appendChild(host);
+    hud = { host, root };
+  }
+
+  function renderHud() {
+    ensureHud();
+    if (!hud) return;
+    hud.host.dataset.theme = theme();
+    const done = [...entries.values()].filter((x) => x.state.status === "done").length;
+    hud.root.querySelector("[data-count]")!.textContent = done ? `· ${done} analyzed` : "";
+    const e = currentId ? entries.get(currentId) : undefined;
+    const who = hud.root.querySelector("[data-who]")!, view = hud.root.querySelector(".view")!, prog = hud.root.querySelector(".prog")!;
+    if (!e) { who.innerHTML = ""; prog.className = "prog"; view.innerHTML = `<div class="idle">Scroll — Fedo analyzes each post as it comes into view.</div>`; return; }
+    const a = authorFrom(e.anchor);
+    const lvl = e.state.status === "done" && e.state.result.overall && e.state.result.overall.level !== "none" ? `<span class="lvl">${e.state.result.overall.level}</span>` : "";
+    who.innerHTML = `<span>${a.displayName ? `<b>${esc(a.displayName)}</b> ` : ""}@${esc(a.handle)}</span>${lvl}`;
+    prog.className = `prog ${progClass(e.state)}`;
+    view.innerHTML = `<div class="body">${renderView(e, e.state, minScore, theme().endsWith("-cb"))}</div>`;
+    view.querySelectorAll("[data-toggle]").forEach((el) => el.addEventListener("click", (ev) => { ev.stopPropagation(); e.expanded = !e.expanded; renderHud(); }));
+    animateMeters({ ...e, root: hud.root } as Entry);
+  }
 
   // Live updates: popup Appearance / colour-blind switch, and the background's settings (minScore, enabled).
   if (!forcedTheme) loadPrefs().then((p) => { prefs = p; rerenderAll(); });
@@ -60,19 +115,27 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
 
   function rerenderAll() {
     for (const [id, e] of entries) api.render(id, e.anchor, e.state);
+    renderHud();
   }
 
   function mount(itemId: string, anchor: HTMLElement): Entry {
     let e = entries.get(itemId);
-    if (e && e.host.isConnected && anchor.contains(e.host)) return e;
+    if (e && e.anchor === anchor) {
+      // strip: under the post · hud: nothing under the post
+      if (layout() === "strip" && !e.host.isConnected) anchor.appendChild(e.host);
+      if (layout() === "hud" && e.host.isConnected) e.host.remove();
+      return e;
+    }
     e?.host.remove();
     const host = document.createElement("fedo-overlay");
     for (const ev of ["click", "mousedown", "pointerdown", "touchstart"]) host.addEventListener(ev, (x) => x.stopPropagation());
     const root = host.attachShadow({ mode: "open" });
     root.innerHTML = `<style>${OVERLAY_CSS}</style><div class="prog"><i></i></div><div class="view"></div>`;
-    anchor.appendChild(host);
+    anchor.dataset.fedoId = itemId;
+    io?.observe(anchor);
     e = { host, root, anchor, state: { status: "pending" }, expanded: false, widths: new Map(), log: [], peak: new Map(), counted: false, slopDismissed: false };
     entries.set(itemId, e);
+    if (layout() === "strip") anchor.appendChild(host);
     return e;
   }
 
@@ -84,12 +147,13 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
       if (state.status === "done") track(e, state.result);
       // progress bar: fills while the AI works (eased to 90%), completes on done, fades out, stays as a hairline
       const prog = e.root.querySelector(".prog")!;
-      prog.className = `prog ${state.status === "pending" ? "loading" : state.status === "error" ? "err" : state.result.partial ? "live" : "done"}`;
+      prog.className = `prog ${progClass(state)}`;
       const view = e.root.querySelector(".view")!;
       view.innerHTML = renderView(e, state, minScore, theme().endsWith("-cb"));
       const toggle = () => { e.expanded = !e.expanded; api.render(itemId, anchor, e.state); };
       view.querySelectorAll("[data-toggle]").forEach((el) => el.addEventListener("click", (ev) => { ev.stopPropagation(); toggle(); }));
       animateMeters(e);
+      if (layout() === "hud" && (itemId === currentId || !currentId)) { if (!currentId) currentId = itemId; renderHud(); } else if (layout() === "hud") renderHud();
       renderCover(e, state, prefs.slopCover, theme(), () => { e.slopDismissed = true; api.render(itemId, anchor, e.state); });
       if (state.status === "done" && !state.result.partial && !e.counted && countStats) {
         e.counted = true;
@@ -98,11 +162,18 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
         appendLog(entryFrom(itemId, anchor, state.result, isSlop(state.result))).catch(() => {});
       }
     },
-    remove(itemId) { const e = entries.get(itemId); e?.host.remove(); e?.cover?.remove(); entries.delete(itemId); },
-    clear() { entries.forEach((e) => { e.host.remove(); e.cover?.remove(); }); entries.clear(); },
+    remove(itemId) {
+      const e = entries.get(itemId);
+      if (e) { io?.unobserve(e.anchor); ratio.delete(itemId); e.host.remove(); e.cover?.remove(); }
+      entries.delete(itemId);
+      if (currentId === itemId) { currentId = undefined; renderHud(); }
+    },
+    clear() { entries.forEach((e) => { io?.unobserve(e.anchor); e.host.remove(); e.cover?.remove(); }); entries.clear(); ratio.clear(); currentId = undefined; hud?.host.remove(); hud = undefined; },
   };
   return api;
 }
+
+const progClass = (state: OverlayState) => (state.status === "pending" ? "loading" : state.status === "error" ? "err" : state.result.partial ? "live" : "done");
 
 // ── AI slop cover ──────────────────────────────────────────────────────────────────────
 const SLOP_KEYS = ["possible_ai_slop", "synthetic_media"] as const;
