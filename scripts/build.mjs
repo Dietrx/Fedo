@@ -4,7 +4,7 @@
  * Then: chrome://extensions → Developer mode → "Load unpacked" → select dist/
  */
 import * as esbuild from "esbuild";
-import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { loadEnv } from "./env.mjs";
 
 const args = process.argv.slice(2);
@@ -12,11 +12,21 @@ const watch = args.includes("--watch");
 const env = loadEnv();
 const mode = args.find((a) => a.startsWith("--analyzer="))?.split("=")[1] ?? env.FEDO_ANALYZER ?? "mock";
 
-const config = { mode, jevApiUrl: env.JEV_API_URL || undefined, jevApiKey: env.JEV_API_KEY || undefined };
+const config = {
+  mode,
+  jevApiUrl: env.JEV_API_URL || undefined,
+  jevApiKey: env.JEV_API_KEY || undefined,
+  sttApiUrl: env.STT_API_URL || undefined,
+  sttApiKey: env.STT_API_KEY || undefined,
+  sttModel: env.STT_MODEL || undefined,
+};
 
 rmSync("dist", { recursive: true, force: true });
 mkdirSync("dist", { recursive: true });
-cpSync("extension/manifest.json", "dist/manifest.json");
+// Host permissions: only the analyzer API origin (if any) — never every site.
+const manifest = JSON.parse(readFileSync("extension/manifest.json", "utf8"));
+manifest.host_permissions = [...new Set([config.jevApiUrl, config.sttApiUrl].filter(Boolean).map((u) => new URL(u).origin + "/*"))];
+writeFileSync("dist/manifest.json", JSON.stringify(manifest, null, 2));
 cpSync("ui/popup/popup.html", "dist/popup.html");
 cpSync("ui/dashboard/dashboard.html", "dist/dashboard.html");
 
@@ -37,7 +47,7 @@ const builds = [
   { ...common, entryPoints: ["ui/dashboard/dashboard.ts"], outfile: "dist/dashboard.js", format: "iife" },
 ];
 
-console.log(`[fedo] analyzer mode: ${mode}`);
+console.log(`[fedo] analyzer mode: ${mode}, speech-to-text: ${config.sttApiUrl ? "on" : "off (no STT_API_URL)"}`);
 if (watch) {
   for (const b of builds) await (await esbuild.context(b)).watch();
   console.log("[fedo] watching… reload the extension in chrome://extensions after changes");

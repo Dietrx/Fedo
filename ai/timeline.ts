@@ -30,3 +30,18 @@ export function buildTimeline(transcript: TranscriptChunk[]): TimelineEvent[] {
 function sentenceItem(chunk: TranscriptChunk): FeedItem {
   return { id: chunk.itemId, platform: "tiktok", author: { handle: "" }, text: chunk.text, hashtags: [], media: [], scrapedAt: 0 };
 }
+
+/**
+ * An API analyzer brings its own timeline (judged sentence by sentence); the local one adds what it found.
+ * Same moment + same technique → one event: the API's score, the local engine's shorter, more precise quote.
+ */
+export function mergeTimelines(primary: TimelineEvent[] | undefined, local: TimelineEvent[]): TimelineEvent[] {
+  if (!primary?.length) return local;
+  const merged = new Map(primary.map((e) => [`${e.t}:${e.key}`, e]));
+  for (const e of local) {
+    const id = `${e.t}:${e.key}`;
+    const known = merged.get(id);
+    merged.set(id, known ? { ...known, evidence: e.evidence ?? known.evidence } : e);
+  }
+  return [...merged.values()].sort((a, b) => a.t - b.t || b.score - a.score);
+}

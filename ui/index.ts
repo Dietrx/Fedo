@@ -6,7 +6,7 @@
  * Design rules (see the Fedo Shield design system):
  *   colour = category of the technique, fill weight = strength, red = LIVE only, always a label next to a colour.
  */
-import { DEFAULT_SETTINGS, SIGNALS, type AnalysisResult, type OverlayRenderer, type OverlayState, type Signal } from "@contracts";
+import { DEFAULT_SETTINGS, SIGNALS, type AnalysisResult, type OverlayRenderer, type OverlayState, type Signal, type VideoProgress } from "@contracts";
 import { loadPrefs, onStorageChange, bumpStats, DEFAULT_PREFS, type Layout, type UiPrefs } from "./prefs";
 import { appendLog, authorFrom, entryFrom } from "./log";
 import { GLYPH, groupOf, hostIsDark, isTopic, resolveTheme, type ThemeId } from "./theme";
@@ -22,6 +22,8 @@ export interface OverlayOptions {
   layout?: Layout;
   /** Where the HUD's Dashboard button goes. Default: the extension's dashboard.html. */
   dashboardUrl?: string;
+  /** Calm mode: dim (never hide) posts whose overall level is "high" until the reader reveals them. Follows Settings.calmMode. */
+  calmMode?: boolean;
 }
 
 interface Entry {
@@ -39,6 +41,8 @@ interface Entry {
   counted: boolean;
   /** when the pending state started (for "still analyzing · 4s") */
   pendingSince?: number;
+  /** calm mode: the reader chose to see this dimmed post */
+  revealed: boolean;
   /** full-post cover for AI slop, and whether the reader dismissed it */
   cover?: HTMLElement;
   slopDismissed: boolean;
@@ -46,6 +50,7 @@ interface Entry {
 
 export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
   let minScore = opts.minScore ?? DEFAULT_SETTINGS.minScore;
+  let calmMode = opts.calmMode ?? DEFAULT_SETTINGS.calmMode ?? false;
   let prefs: UiPrefs = DEFAULT_PREFS;
   let forcedTheme = opts.theme;
   const countStats = opts.stats ?? true;
@@ -98,9 +103,11 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
     const a = authorFrom(e.anchor);
     const lvl = e.state.status === "done" && e.state.result.overall && e.state.result.overall.level !== "none" ? `<span class="lvl">${e.state.result.overall.level}</span>` : "";
     who.innerHTML = `<span>${a.displayName ? `<b>${esc(a.displayName)}</b> ` : ""}@${esc(a.handle)}</span>${lvl}`;
-    prog.className = `prog ${progClass(e.state)}`;
-    view.innerHTML = `<div class="body swap">${renderView(e, e.state, minScore, theme().endsWith("-cb"))}</div>`;
+    setProg(prog, e.state);
+    const dim = calmMode && !e.revealed && e.state.status === "done" && e.state.result.overall?.level === "high";
+    view.innerHTML = `<div class="body swap">${renderView(e, e.state, minScore, theme().endsWith("-cb"), dim)}</div>`;
     view.querySelectorAll("[data-toggle]").forEach((el) => el.addEventListener("click", (ev) => { ev.stopPropagation(); e.expanded = !e.expanded; renderHud(); }));
+    view.querySelectorAll("[data-reveal]").forEach((el) => el.addEventListener("click", (ev) => { ev.stopPropagation(); e.revealed = true; api.render(currentId!, e.anchor, e.state); }));
     animateMeters({ ...e, root: hud.root } as Entry);
   }
 
@@ -110,6 +117,7 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
     if (c.prefs) prefs = c.prefs;
     if (c.settings) {
       if (typeof c.settings.minScore === "number") minScore = c.settings.minScore;
+      if (typeof c.settings.calmMode === "boolean") calmMode = c.settings.calmMode;
       if (c.settings.enabled === false) { api.clear(); return; }
     }
     rerenderAll();
@@ -123,6 +131,14 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
       const t = pendingText(secs);
       e.root.querySelectorAll("[data-elapsed]").forEach((el) => (el.textContent = t));
       if (hud && currentId === e.host.dataset.fedoId) hud.root.querySelectorAll("[data-elapsed]").forEach((el) => (el.textContent = t));
+    }
+    // video ETA countdown ("full result in 12s")
+    for (const e of entries.values()) {
+      const eta = e.state.status !== "error" ? e.state.progress?.etaAt : undefined;
+      if (!eta) continue;
+      const t = etaText(eta);
+      e.root.querySelectorAll("[data-eta]").forEach((el) => (el.textContent = t));
+      if (hud && currentId === e.host.dataset.fedoId) hud.root.querySelectorAll("[data-eta]").forEach((el) => (el.textContent = t));
     }
   }, 1000);
 
@@ -147,7 +163,7 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
     anchor.dataset.fedoId = itemId;
     host.dataset.fedoId = itemId;
     io?.observe(anchor);
-    e = { host, root, anchor, state: { status: "pending" }, expanded: false, widths: new Map(), log: [], peak: new Map(), counted: false, slopDismissed: false };
+    e = { host, root, anchor, state: { status: "pending" }, expanded: false, widths: new Map(), log: [], peak: new Map(), counted: false, slopDismissed: false, revealed: false };
     entries.set(itemId, e);
     if (layout() === "strip") anchor.appendChild(host);
     return e;
@@ -164,11 +180,16 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
       if (state.status === "done") track(e, state.result);
       // progress bar: fills while the AI works (eased to 90%), completes on done, fades out, stays as a hairline
       const prog = e.root.querySelector(".prog")!;
-      prog.className = `prog ${progClass(state)}`;
+      setProg(prog, state);
+      // calm mode: dim, never hide
+      const dim = calmMode && !e.revealed && state.status === "done" && state.result.overall?.level === "high";
+      anchor.style.opacity = dim ? "0.35" : "";
+      anchor.style.transition = "opacity .2s";
       const view = e.root.querySelector(".view")!;
-      view.innerHTML = renderView(e, state, minScore, theme().endsWith("-cb"));
+      view.innerHTML = renderView(e, state, minScore, theme().endsWith("-cb"), dim);
       const toggle = () => { e.expanded = !e.expanded; api.render(itemId, anchor, e.state); };
       view.querySelectorAll("[data-toggle]").forEach((el) => el.addEventListener("click", (ev) => { ev.stopPropagation(); toggle(); }));
+      view.querySelectorAll("[data-reveal]").forEach((el) => el.addEventListener("click", (ev) => { ev.stopPropagation(); e.revealed = true; api.render(itemId, anchor, e.state); }));
       animateMeters(e);
       if (layout() === "hud" && (itemId === currentId || !currentId)) { if (!currentId) currentId = itemId; renderHud(); } else if (layout() === "hud") renderHud();
       renderCover(e, state, prefs.slopCover, theme(), () => { e.slopDismissed = true; api.render(itemId, anchor, e.state); });
@@ -190,6 +211,25 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
   return api;
 }
 
+/** The 2px line: real video progress (coveredSec / durationSec) when the glue reports it, else the eased "AI is working" fill. */
+function setProg(prog: Element, state: OverlayState) {
+  const vp = state.status !== "error" ? state.progress : undefined;
+  const bar = prog.querySelector<HTMLElement>("i");
+  if (vp && vp.phase !== "unavailable" && vp.durationSec && bar) {
+    prog.className = `prog video${vp.phase === "muted" ? " muted" : ""}`;
+    bar.style.width = `${Math.min(100, (vp.coveredSec / vp.durationSec) * 100)}%`;
+    return;
+  }
+  if (bar) bar.style.width = "";
+  prog.className = `prog ${progClass(state)}`;
+}
+const phaseText = (p: VideoProgress) =>
+  p.phase === "muted" ? "Unmute the video to analyze the speech" :
+  p.phase === "listening" ? "Listening to the video" :
+  p.phase === "transcribing" ? (p.coveredSec ? `Listening · ${mmss(p.coveredSec)}${p.durationSec ? ` / ${mmss(p.durationSec)}` : ""}` : "Listening… first result in a few seconds") :
+  p.phase === "done" ? "Whole video analyzed" : "";
+const etaText = (etaAt: number) => { const s = Math.max(0, Math.round((etaAt - Date.now()) / 1000)); return s ? `full result in ${s}s` : "finishing…"; };
+const etaSpan = (p?: VideoProgress) => (p && p.phase !== "unavailable" && p.phase !== "done" && p.etaAt ? `<span class="t" data-eta>${etaText(p.etaAt)}</span>` : "");
 const pendingText = (secs: number) => (secs < 3 ? "Analyzing" : secs < 12 ? `Still analyzing · ${secs}s` : `Taking longer than usual · ${secs}s`);
 const progClass = (state: OverlayState) => (state.status === "pending" ? "loading" : state.status === "error" ? "err" : state.result.partial ? "live" : "done");
 
@@ -251,8 +291,10 @@ const visible = (r: AnalysisResult, min: number) => r.signals.filter((s) => s.sc
 const topics = (r: AnalysisResult, min: number) => r.signals.filter((s) => s.score >= min && isTopic(s.key));
 const topicTag = (r: AnalysisResult, min: number) => topics(r, min).map((s) => `<span class="topic">${esc(SIGNALS[s.key].label.replace(/ content$/i, ""))} topic</span>`).join("");
 
-function renderView(e: Entry, state: OverlayState, minScore: number, cb: boolean): string {
+function renderView(e: Entry, state: OverlayState, minScore: number, cb: boolean, dim = false): string {
+  const vp = state.status !== "error" ? state.progress : undefined;
   if (state.status === "pending") {
+    if (vp && vp.phase !== "unavailable") return `<div class="strip pending"><span class="dot"></span><span class="muted">${phaseText(vp)}</span>${etaSpan(vp)}</div>`;
     const secs = e.pendingSince ? Math.floor((Date.now() - e.pendingSince) / 1000) : 0;
     return `<div class="strip pending"><span class="dot"></span><span class="muted" data-elapsed>${pendingText(secs)}</span><span class="skel w1"></span><span class="skel w2"></span></div>`;
   }
@@ -260,14 +302,18 @@ function renderView(e: Entry, state: OverlayState, minScore: number, cb: boolean
 
   const { result } = state;
   const shown = visible(result, minScore);
-  if (!shown.length && !result.partial) return `<div class="strip muted">${CHECK}No strong signals${topicTag(result, minScore)}</div>`;
+  // coverage: never a clean check when the analysis could not really see the item
+  if (result.coverage === "insufficient" && !shown.length) return `<div class="strip muted">Not enough text to assess</div>`;
+  const textOnly = result.coverage === "text_only" ? `<span class="topic" title="Images and video are not analyzed yet">text only</span>` : "";
+  if (!shown.length && !result.partial) return `<div class="strip muted">${CHECK}No strong signals${textOnly}${topicTag(result, minScore)}${etaSpan(vp)}</div>`;
+  const reveal = dim ? `<button data-reveal class="btn ghost small">Dimmed · Show</button>` : "";
 
   // The strip: LIVE · up to three labels with a category dot · +N · Details ›   (colour only on the dots)
   const live = result.partial ? `<span class="live"><i></i>LIVE</span>` : "";
   const labels = shown.slice(0, 3).map((s) => label(s, cb)).join(`<span class="sep">·</span>`);
   const more = shown.length > 3 ? `<span class="more">+${shown.length - 3}</span>` : "";
   const toggle = `<span class="details">${e.expanded ? "Hide" : "Details"} <span class="chev">${e.expanded ? "‹" : "›"}</span></span>`;
-  return `<div class="strip" data-toggle role="button" tabindex="0" aria-expanded="${e.expanded}">${live}<span class="labs">${labels}${more}</span>${topicTag(result, minScore)}${toggle}</div>` + (e.expanded ? panel(e, result, shown, cb) : "");
+  return `<div class="strip" data-toggle role="button" tabindex="0" aria-expanded="${e.expanded}">${live}<span class="labs">${labels}${more}</span>${textOnly}${topicTag(result, minScore)}${etaSpan(vp)}${reveal}${toggle}</div>` + (e.expanded ? panel(e, result, shown, cb) : "");
 }
 
 function label(s: Signal, cb: boolean): string {

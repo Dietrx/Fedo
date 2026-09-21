@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fedo Shield",
-  "version": "0.1.0",
-  "description": "Live persuasion & manipulation signals on your social media feed.",
+  "version": "0.2.0",
+  "description": "Live persuasion-technique signals on your social media feed, plus a dashboard of what your feed serves you.",
   "permissions": ["storage"],
   "host_permissions": ["https://*/*"],
   "background": { "service_worker": "background.js", "type": "module" },
@@ -18,6 +18,9 @@
       "js": ["content.js"],
       "run_at": "document_idle"
     }
+  ],
+  "web_accessible_resources": [
+    { "resources": ["dashboard.html"], "matches": ["https://x.com/*", "https://twitter.com/*", "https://www.tiktok.com/*"] }
   ],
   "action": { "default_popup": "popup.html", "default_title": "Fedo Shield" }
 }

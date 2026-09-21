@@ -36,6 +36,9 @@ export const OVERLAY_CSS = /* css */ `
   .prog.done i { width: 100%; opacity: 0; }
   .prog.live i { width: 100%; background: var(--live); opacity: 1; }
   .prog.err i { width: 100%; background: var(--ink-muted); }
+  .prog.video i { animation: none; transition: width .6s ease-out; background: var(--live); opacity: 1; }
+  .prog.video.muted i { background: var(--ink-muted); }
+  .btn.small { height: 24px; padding: 0 8px; font: 600 11px/16px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; flex: none; }
 
   /* the strip: one quiet 28px line inside the post, no box, colour only on the dots */
   .strip { display: flex; align-items: center; gap: var(--space-2); min-height: 28px; padding: 0 2px; font: 500 12px/16px var(--font-sans);

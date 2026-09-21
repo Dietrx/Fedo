@@ -6,7 +6,34 @@ import type { SignalKey } from "./types";
  * - UI path uses `label` / `description` for display.
  * Wording principle: we describe TECHNIQUES, never judge opinions or intent.
  */
-export const SIGNALS: Record<SignalKey, { label: string; description: string; question: string; group: "political" | "rhetoric" | "credibility" | "synthetic" }> = {
+export type SignalGroup = "political" | "rhetoric" | "credibility" | "synthetic";
+
+export const SIGNAL_GROUPS: Record<SignalGroup, { label: string; description: string }> = {
+  political: { label: "Political", description: "Talks about or argues for a political position." },
+  rhetoric: { label: "Emotional rhetoric", description: "Fear, anger, in-group vs. out-group, attacks." },
+  credibility: { label: "Credibility", description: "Unsourced claims, conspiracy framing, bait, ads." },
+  synthetic: { label: "Synthetic", description: "Signs of generated or manipulated content." },
+};
+
+/**
+ * Where a signal comes from in the literature (shown in the "Why?" panel and the pitch).
+ * Keep it to one line: authors, year, venue, what it found.
+ */
+export const RESEARCH: Partial<Record<SignalKey, string>> = {
+  fear_framing: "Da San Martino et al. 2019 (EMNLP) / SemEval-2020 Task 11: 'appeal to fear' is one of the 14 catalogued propaganda techniques.",
+  anger_framing: "Brady et al. 2017 (PNAS): each moral-emotional word raised retweet rates by ~20 %.",
+  us_vs_them: "Rathje, Van Bavel & van der Linden 2021 (PNAS): out-group words raised the odds of a share by ~67 %.",
+  scapegoating: "Roozenbeek et al. 2022 (Science Advances): scapegoating is one of the techniques that inoculation training teaches people to spot.",
+  personal_attack: "Roozenbeek et al. 2022 (Science Advances): ad-hominem attacks are a core manipulation technique in inoculation research.",
+  dehumanizing_language: "Da San Martino et al. 2019 (EMNLP): 'name calling / labeling' technique; dehumanizing terms are its strongest form.",
+  conspiracy_framing: "SemEval-2020 Task 11: 'doubt' and 'causal oversimplification'; Vosoughi, Roy & Aral 2018 (Science): false news spread ~70 % more likely.",
+  factual_claim: "Pennycook et al. 2021 (Nature): nudging attention to accuracy at the moment of sharing reduces the spread of misinformation.",
+  sensationalism: "Da San Martino et al. 2019 (EMNLP): 'exaggeration / minimisation' and 'loaded language'.",
+  urgency_language: "Roozenbeek & van der Linden 2019 ('Bad News'): manufactured urgency is one of the trained manipulation techniques.",
+  engagement_bait: "Vosoughi, Roy & Aral 2018 (Science): novelty and emotional reactions, not truth, drive diffusion.",
+};
+
+export const SIGNALS: Record<SignalKey, { label: string; description: string; question: string; group: SignalGroup }> = {
   political_content: { group: "political", label: "Political content", description: "The post discusses political topics, parties or policies.", question: "Is this content about politics, political actors or policy?" },
   political_persuasion: { group: "political", label: "Political persuasion", description: "The post tries to change political opinions or votes.", question: "Does this content try to persuade the audience toward a political position?" },
   fear_framing: { group: "rhetoric", label: "Fear framing", description: "Uses fear or threat to make a point.", question: "Does this content use fear or threat to persuade?" },

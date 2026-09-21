@@ -154,6 +154,61 @@ Post-Links ins Dashboard werden auf `http(s)` geprüft (Extension-Seite = privil
 
 **Wichtig zu wissen:** `npm run dev:ui` hat jetzt Theme-Dropdown, Schwellwert-Slider, Live-Simulation und einen Slop-Testpost.
 Das Cover ist standardmäßig an (Popup → „Cover AI slop posts").
+## 2026-09-21 · `ai/video-integration` · AI · Video-Pipeline (captureStream → STT → Analyse) AI-seitig angepasst + getestet
+
+**Was hat sich geändert** (nur `ai/`, baut auf `video-stt` auf):
+- Ende-zu-Ende in Node getestet (`npx tsx ai/dev/run-stt.ts <wav> --jev`): STT ~1,3 s pro 8-s-Stück (Gemini 2.5 Flash über OpenRouter),
+  wortgenau; Musik/Rauschen → leeres Transkript, nichts Erfundenes. Danach Jev ~0,5 s → Anzeige ca. 10 s hinter dem Video.
+- Sätze, die an den 8-s-Audiogrenzen zerschnitten werden („… Not us. The" | „newcomers get …"), setzt `ai/transcript.ts` wieder zusammen.
+- Jev bewertet jeden fertigen gesprochenen Satz einzeln (pro Video gecacht → jeder Satz kostet genau einmal):
+  `timeline` und Zitate funktionieren damit auch bei natürlicher Sprache, nicht nur bei Lexikon-Treffern.
+- `ai/` setzt `coverage` jetzt selbst (der Fallback in `background.ts` greift dann nicht mehr) und meldet `source: "local"` für die Offline-Engine.
+- `ai/` ist auf dem Stand von `main` (Ton-Erkennung für Satire/Ironie aus #11).
+
+**Was musst du tun:**
+- In `.env`: `STT_API_URL=https://openrouter.ai/api/v1/chat/completions`, `STT_API_KEY=<OpenRouter-Key>`, `STT_MODEL=google/gemini-2.5-flash` → `npm run build` → ↻
+- **Im Popup auf „cloud" stellen**, sonst läuft nur die lokale Engine (`DEFAULT_SETTINGS.mode` ist `"local"`). Für die Demo wichtig!
+- **Glue (UI-Dev):** Post-Cache in `background.ts` darf `kind: "draft"` nicht cachen (gleiche id, Text ändert sich beim Tippen) → `input.item.kind !== "draft"` in die Cache-Bedingung.
+
+**Wichtig zu wissen:** Im Cloud-Modus geht Video-AUDIO an OpenRouter/Google und Text an TypeSafe. Der Key steckt in `dist/` → `dist/` nie weitergeben.
+
+---
+
+## 2026-09-21 · Branch `video-stt` · Scraper + AI + Glue + UI · Videos werden wirklich gehört (Sprache → Text → Analyse, mit Fortschritt und Countdown)
+
+**Was hat sich geändert:**
+- `scraper/video.ts` (neu, in `createScraper` für X und TikTok verdrahtet): Das laufende, sichtbare Video wird
+  über `video.captureStream()` abgehört — kein Tab-Capture, keine Extra-Berechtigung, kein Mikrofon. Alle 8 s
+  geht ein Stück als 16-kHz-Mono-WAV an `sink.onAudio()`. Stumme Stücke werden lokal verworfen (nichts gesendet);
+  max. 180 s pro Video.
+- `ai/stt.ts` (neu): `createTranscriber(config)` — zwei Endpunkt-Arten, per URL erkannt:
+  Whisper-artig (`…/audio/transcriptions`, exakte Zeitstempel) oder OpenAI-kompatibler Chat mit `input_audio`
+  (z. B. OpenRouter + `google/gemini-2.5-flash`). Liefert Text + Sätze mit Startzeit.
+- `extension/src/background.ts`: Message `fedo/transcribe`. `scripts/build.mjs`: `STT_API_URL`, `STT_API_KEY`,
+  `STT_MODEL` aus `.env` (Vorlage in `.env.example`); `host_permissions` enthält die STT-Origin.
+- `extension/src/content.ts`: Audio → STT → `TranscriptChunk`s (`source: "stt"`) → die bestehende
+  Transcript-Pipeline (`withLiveVideo`, Timeline, LIVE-Badge). Führt `VideoProgress` (gehörte Sekunden,
+  Gesamtlänge, ETA) und schließt das Transkript, wenn das Video endet.
+- `contracts/` (nur optional): `AudioChunk`, `TranscriptionResult`, `VideoProgress`, `Transcriber`,
+  `ScraperSink.onAudio?`, `AnalyzerConfig.sttApiUrl/sttApiKey/sttModel`, `OverlayState.progress?`,
+  Message `fedo/transcribe`.
+- `ui/index.ts`: Fortschrittsleiste unter der Chip-Leiste („🎧 0:16 of 0:45 analyzed · full analysis in 34 s“,
+  tickt sekündlich), „Full video analyzed“ am Ende, „Unmute the video to analyze the speech“ bei stummem Player,
+  Zeitleiste „In the video“ im Why-Panel (rendert `result.timeline` aus PR #4/#5).
+- Playground: „Simulate live video“ zeigt jetzt Fortschritt, Countdown und Zeitleiste.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, in `.env` eintragen (AI-Dev hat den OpenRouter-Key):
+  `STT_API_URL=https://openrouter.ai/api/v1/chat/completions`, `STT_API_KEY=sk-or-…`,
+  `STT_MODEL=google/gemini-2.5-flash` → `npm run build` → ↻ in chrome://extensions → Video auf X **mit Ton** abspielen.
+- **AI-Dev:** bitte einen echten Lauf gegen OpenRouter machen — die Keys auf dem Rechner, auf dem das gebaut wurde,
+  waren tot (401). Der Client ist gegen einen Nachbau beider API-Formate geprüft (Multipart + Auth, `input_audio` wav,
+  Zeitstempel), nicht gegen den echten Anbieter.
+
+**Wichtig zu wissen:** Verifiziert in Chromium: eine 11-s-Sprachaufnahme in einem `<video>` ergibt zwei WAV-Stücke
+(0,0–7,9 s und 7,9–11,4 s, 16 kHz mono, −15,6 dB, `ended` korrekt). Ohne `STT_API_URL` passiert nichts Neues —
+Videos werden dann wie bisher nur über Text/Caption bewertet. Stummgeschaltete Player liefern in Chrome kein Audio
+→ die Leiste sagt das ehrlich, statt „sauber“ zu zeigen.
 
 ---
 
@@ -171,6 +226,33 @@ Das Cover ist standardmäßig an (Popup → „Cover AI slop posts").
 - **UI-Dev:** (1) `evidence` braucht Platz für ~90 Zeichen / Umbruch. (2) Bei stark aufgeladenen Posts kommen 5–8 Signale ≥ 50 %.
   Empfehlung: die 3–4 stärksten als Chips, Rest hinter „+n“. Mehrere Signale können dasselbe Zitat haben → nur einmal anzeigen.
   (3) `result.timeline` + `result.overall` kommen fertig aus der AI, müssen nicht aus Score-Sprüngen nachgebaut werden.
+## 2026-09-21 · Branch `feed-diet` · Contracts + Glue + UI · Feed-Diet-Dashboard, Live-Settings, Coverage
+
+**Was hat sich geändert:**
+- `contracts/` (alles optional, nichts Breaking): `Settings.mode` („local“/„cloud“) + `Settings.calmMode`,
+  `AnalysisResult.coverage` („full“/„text_only“/„insufficient“), `source: "local"` zusätzlich zu „mock“,
+  `FeedItem.kind` („post“/„draft“ für den Compose-Spiegel), `ExposureRecord`/`FeedStats`/`StatsWindow`,
+  Messages `fedo/getStats`, `fedo/getRecords`, `fedo/clearStats`, `RESEARCH` + `SIGNAL_GROUPS` in `signals.ts`.
+- `extension/src/background.ts`: schreibt pro analysiertem Post einen Datensatz nach `chrome.storage.local`
+  (dedupliziert per Item-ID, Drafts nie), aggregiert Statistiken pro Zeitfenster, setzt den Badge-Zähler
+  (hohe Intensität in dieser Sitzung), wählt den Analyzer nach `Settings.mode`, setzt `coverage` als Fallback.
+- `extension/src/content.ts`: Popup-Änderungen gelten sofort (kein Tab-Reload), Sequenz-Guard für
+  Transcript-Antworten (alte Antworten überschreiben keine neuen mehr).
+- `ui/popup/`: das Dashboard — Zeitfenster, Kennzahlen, Donut nach Stufe, Top-Techniken, Top-Quellen,
+  Presets statt Slider, Calm Mode, Lokal/Cloud, Export, Reset.
+- `ui/index.ts`: Gesamtstufen-Badge, Coverage-Zustände (kein grüner Haken ohne Text), Calm Mode dimmt
+  (nie verstecken, „Show post“), Research-Zeile im Why-Panel.
+- `scripts/build.mjs`: `host_permissions` nur noch die Jev-Origin (statt `https://*/*`).
+- `npm run check` läuft jetzt auch `npm run eval` (10 Regressionsfälle). `DEMO.md` neu.
+
+**Was musst du tun:**
+- `git pull --rebase origin main` (nachdem `feed-diet` gemerged ist), `npm run build`, in chrome://extensions auf ↻.
+- **AI-Dev:** `source: "local"` statt „mock“ setzen und `coverage` in `analyzeLocally` befüllen (dann fliegt
+  der Fallback im Glue raus). `kind: "draft"` bei der Analyse nicht anders behandeln, das Glue loggt Drafts nur nicht.
+- **Scraper-Dev:** Compose-Box (`[data-testid="tweetTextarea_0"]`) als `FeedItem` mit `kind: "draft"` liefern, wenn Zeit ist.
+
+**Wichtig zu wissen:** Verifiziert in Chromium mit geladener Extension: 10 Posts → 10 Datensätze, doppelte Analyse
+zählt einmal, Badge = Anzahl „high“. Alte Ergebnisse ohne `overall` bekommen eine abgeleitete Stufe.
 
 ---
 
