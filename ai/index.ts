@@ -8,7 +8,6 @@ import { createMockAnalyzer } from "./mock";
 import { createJevAnalyzer } from "./jev";
 import { withLiveVideo } from "./live";
 import { createLlmAnalyzer, isChatCompletionsUrl } from "./llm";
-export { createTranscriber } from "./stt";
 
 /** Every analyzer gets the live-video wrapper: throttling + coalescing of transcript updates, plus the timeline. */
 export function createAnalyzer(config: AnalyzerConfig): Analyzer {
