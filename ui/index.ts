@@ -9,7 +9,7 @@
 import { DEFAULT_SETTINGS, SIGNALS, type AnalysisResult, type OverlayRenderer, type OverlayState, type Signal } from "@contracts";
 import { loadPrefs, onStorageChange, bumpStats, DEFAULT_PREFS, type Layout, type UiPrefs } from "./prefs";
 import { appendLog, authorFrom, entryFrom } from "./log";
-import { GLYPH, groupOf, hostIsDark, resolveTheme, type ThemeId } from "./theme";
+import { GLYPH, groupOf, hostIsDark, isTopic, resolveTheme, type ThemeId } from "./theme";
 import { OVERLAY_CSS } from "./styles";
 
 export interface OverlayOptions {
@@ -37,6 +37,8 @@ interface Entry {
   log: { t: number; key: Signal["key"]; evidence?: string }[];
   peak: Map<string, number>;
   counted: boolean;
+  /** when the pending state started (for "still analyzing · 4s") */
+  pendingSince?: number;
   /** full-post cover for AI slop, and whether the reader dismissed it */
   cover?: HTMLElement;
   slopDismissed: boolean;
@@ -97,7 +99,7 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
     const lvl = e.state.status === "done" && e.state.result.overall && e.state.result.overall.level !== "none" ? `<span class="lvl">${e.state.result.overall.level}</span>` : "";
     who.innerHTML = `<span>${a.displayName ? `<b>${esc(a.displayName)}</b> ` : ""}@${esc(a.handle)}</span>${lvl}`;
     prog.className = `prog ${progClass(e.state)}`;
-    view.innerHTML = `<div class="body">${renderView(e, e.state, minScore, theme().endsWith("-cb"))}</div>`;
+    view.innerHTML = `<div class="body swap">${renderView(e, e.state, minScore, theme().endsWith("-cb"))}</div>`;
     view.querySelectorAll("[data-toggle]").forEach((el) => el.addEventListener("click", (ev) => { ev.stopPropagation(); e.expanded = !e.expanded; renderHud(); }));
     animateMeters({ ...e, root: hud.root } as Entry);
   }
@@ -112,6 +114,17 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
     }
     rerenderAll();
   });
+
+  // once a second: update "still analyzing · Ns" on pending posts (text only, no re-render)
+  setInterval(() => {
+    for (const e of entries.values()) {
+      if (e.state.status !== "pending" || !e.pendingSince) continue;
+      const secs = Math.floor((Date.now() - e.pendingSince) / 1000);
+      const t = pendingText(secs);
+      e.root.querySelectorAll("[data-elapsed]").forEach((el) => (el.textContent = t));
+      if (hud && currentId === e.host.dataset.fedoId) hud.root.querySelectorAll("[data-elapsed]").forEach((el) => (el.textContent = t));
+    }
+  }, 1000);
 
   function rerenderAll() {
     for (const [id, e] of entries) api.render(id, e.anchor, e.state);
@@ -132,6 +145,7 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
     const root = host.attachShadow({ mode: "open" });
     root.innerHTML = `<style>${OVERLAY_CSS}</style><div class="prog"><i></i></div><div class="view"></div>`;
     anchor.dataset.fedoId = itemId;
+    host.dataset.fedoId = itemId;
     io?.observe(anchor);
     e = { host, root, anchor, state: { status: "pending" }, expanded: false, widths: new Map(), log: [], peak: new Map(), counted: false, slopDismissed: false };
     entries.set(itemId, e);
@@ -142,6 +156,9 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
   const api: OverlayRenderer = {
     render(itemId, anchor, state) {
       const e = mount(itemId, anchor);
+      if (state.status === "pending" && e.state.status !== "pending") e.pendingSince = Date.now();
+      if (state.status === "pending" && !e.pendingSince) e.pendingSince = Date.now();
+      if (state.status !== "pending") e.pendingSince = undefined;
       e.state = state;
       e.host.dataset.theme = theme();
       if (state.status === "done") track(e, state.result);
@@ -173,6 +190,7 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
   return api;
 }
 
+const pendingText = (secs: number) => (secs < 3 ? "Analyzing" : secs < 12 ? `Still analyzing · ${secs}s` : `Taking longer than usual · ${secs}s`);
 const progClass = (state: OverlayState) => (state.status === "pending" ? "loading" : state.status === "error" ? "err" : state.result.partial ? "live" : "done");
 
 // ── AI slop cover ──────────────────────────────────────────────────────────────────────
@@ -229,22 +247,27 @@ function animateMeters(e: Entry) {
 }
 
 // ── views ──────────────────────────────────────────────────────────────────────────────
-const visible = (r: AnalysisResult, min: number) => r.signals.filter((s) => s.score >= min).sort((a, b) => b.score - a.score);
+const visible = (r: AnalysisResult, min: number) => r.signals.filter((s) => s.score >= min && !isTopic(s.key)).sort((a, b) => b.score - a.score);
+const topics = (r: AnalysisResult, min: number) => r.signals.filter((s) => s.score >= min && isTopic(s.key));
+const topicTag = (r: AnalysisResult, min: number) => topics(r, min).map((s) => `<span class="topic">${esc(SIGNALS[s.key].label.replace(/ content$/i, ""))} topic</span>`).join("");
 
 function renderView(e: Entry, state: OverlayState, minScore: number, cb: boolean): string {
-  if (state.status === "pending") return `<div class="strip"><span class="dot"></span><span class="muted">Analyzing</span></div>`;
+  if (state.status === "pending") {
+    const secs = e.pendingSince ? Math.floor((Date.now() - e.pendingSince) / 1000) : 0;
+    return `<div class="strip pending"><span class="dot"></span><span class="muted" data-elapsed>${pendingText(secs)}</span><span class="skel w1"></span><span class="skel w2"></span></div>`;
+  }
   if (state.status === "error") return `<div class="strip"><span class="muted">Analysis unavailable</span></div>`;
 
   const { result } = state;
   const shown = visible(result, minScore);
-  if (!shown.length && !result.partial) return `<div class="strip muted">${CHECK}No strong signals</div>`;
+  if (!shown.length && !result.partial) return `<div class="strip muted">${CHECK}No strong signals${topicTag(result, minScore)}</div>`;
 
   // The strip: LIVE · up to three labels with a category dot · +N · Details ›   (colour only on the dots)
   const live = result.partial ? `<span class="live"><i></i>LIVE</span>` : "";
   const labels = shown.slice(0, 3).map((s) => label(s, cb)).join(`<span class="sep">·</span>`);
   const more = shown.length > 3 ? `<span class="more">+${shown.length - 3}</span>` : "";
   const toggle = `<span class="details">${e.expanded ? "Hide" : "Details"} <span class="chev">${e.expanded ? "‹" : "›"}</span></span>`;
-  return `<div class="strip" data-toggle role="button" tabindex="0" aria-expanded="${e.expanded}">${live}<span class="labs">${labels}${more}</span>${toggle}</div>` + (e.expanded ? panel(e, result, shown, cb) : "");
+  return `<div class="strip" data-toggle role="button" tabindex="0" aria-expanded="${e.expanded}">${live}<span class="labs">${labels}${more}</span>${topicTag(result, minScore)}${toggle}</div>` + (e.expanded ? panel(e, result, shown, cb) : "");
 }
 
 function label(s: Signal, cb: boolean): string {
@@ -256,7 +279,8 @@ function label(s: Signal, cb: boolean): string {
 function panel(e: Entry, r: AnalysisResult, shown: Signal[], cb: boolean): string {
   const isLive = !!e.liveStart;
   const tl = r.timeline ?? [];
-  const rows = (isLive ? r.signals.filter((s) => s.score >= 0.3).sort((a, b) => b.score - a.score) : shown).map((s) => row(s, cb)).join("");
+  const rows = (isLive ? r.signals.filter((s) => s.score >= 0.3 && !isTopic(s.key)).sort((a, b) => b.score - a.score) : shown).map((s) => row(s, cb)).join("");
+  const topic = topicTag(r, 0.5);
   const overall = r.overall && r.overall.level !== "none" ? `<span class="lvl">${r.overall.level} · ${pct(r.overall.score)}</span>` : "";
   const status = isLive
     ? (r.partial ? `<span class="live"><i></i>LIVE</span>` : `<span class="t">DONE</span>`) + `<span class="t">${mmss(tl.length ? tl[tl.length - 1]!.t : (Date.now() - e.liveStart!) / 1000)}</span>`
@@ -270,8 +294,8 @@ function panel(e: Entry, r: AnalysisResult, shown: Signal[], cb: boolean): strin
       <div class="head"><h3>${isLive ? "Live analysis" : "Post analysis"}</h3><div class="meta">${status}</div></div>
       ${overall ? `<div class="overall"><span class="muted">Overall use of persuasion techniques</span>${overall}</div>` : ""}
       ${r.explanation ? `<p class="explain">${esc(r.explanation)}</p>` : ""}
-      <div class="sec">Signals</div>
-      ${rows || `<p class="muted">No signal above the threshold.</p>`}
+      <div class="sec">Signals ${topic}</div>
+      ${rows || `<p class="muted">No technique above the threshold.</p>`}
       ${log}
       <div class="foot"><span class="note">Techniques, not opinions</span><button data-toggle class="btn ghost">Hide ‹</button></div>
     </div>`;

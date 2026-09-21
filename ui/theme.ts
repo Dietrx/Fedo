@@ -69,6 +69,13 @@ const CAT: Record<ThemeId, Cat & { clean: [string, string] }> = {
 export const GROUPS: Group[] = ["political", "rhetoric", "credibility", "synthetic"];
 /** Shape glyph per group, shown before the label in the colour-blind themes so hue never carries meaning alone. */
 export const GLYPH: Record<AnyGroup, string> = { political: "◆", rhetoric: "▲", credibility: "●", synthetic: "■", other: "○" };
+/**
+ * Topic keys: the AI treats these as a TOPIC, not a technique (ai/assess.ts SEVERITY 0, skipped in timeline and explanation).
+ * The UI shows them as a quiet tag and never counts them as a signal. Keep in sync with ai/assess.ts.
+ */
+export const TOPIC_KEYS: ReadonlySet<SignalKey> = new Set<SignalKey>(["political_content"]);
+export const isTopic = (key: SignalKey) => TOPIC_KEYS.has(key);
+
 const KNOWN = new Set<string>(["political", "rhetoric", "credibility", "synthetic"]);
 /** Group of a signal for colouring. An unknown group (new in contracts) maps to "other" = neutral ink. */
 export const groupOf = (key: SignalKey): AnyGroup => {

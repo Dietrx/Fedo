@@ -30,8 +30,9 @@ export const OVERLAY_CSS = /* css */ `
   /* progress: a 2px line at the top of the overlay. Fills while the AI works, completes, fades to the hairline */
   .prog { position: relative; height: 2px; border-radius: 1px; background: var(--hairline); overflow: hidden; }
   .prog i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--ink); border-radius: 1px; transition: width .2s ease-out, opacity .4s ease .6s; }
-  .prog.loading i { animation: fill 1.6s cubic-bezier(.2,.7,.3,1) forwards; }
+  .prog.loading i { animation: fill 1.6s cubic-bezier(.2,.7,.3,1) forwards, creep 25s linear 1.6s forwards; }
   @keyframes fill { to { width: 90%; } }
+  @keyframes creep { from { width: 90%; } to { width: 97%; } }
   .prog.done i { width: 100%; opacity: 0; }
   .prog.live i { width: 100%; background: var(--live); opacity: 1; }
   .prog.err i { width: 100%; background: var(--ink-muted); }
@@ -44,6 +45,16 @@ export const OVERLAY_CSS = /* css */ `
   .strip.muted { color: var(--ink-muted); }
   .strip svg { width: 12px; height: 12px; color: var(--clean); flex: none; }
   .muted { color: var(--ink-muted); }
+  /* loading: skeleton pills + animated ellipsis */
+  .skel { display: inline-block; height: 14px; border-radius: var(--radius-pill); background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--hairline) 50%, var(--surface-sunken) 75%) 200% 0 / 200% 100%; animation: shimmer 1.4s linear infinite; }
+  .skel.w1 { width: 96px; } .skel.w2 { width: 64px; }
+  @keyframes shimmer { to { background-position: 0 0; } }
+  .pending [data-elapsed]::after { content: "…"; display: inline-block; width: 0; overflow: hidden; vertical-align: bottom; animation: ell 1.5s steps(4, end) infinite; }
+  @keyframes ell { to { width: 1.1em; } }
+  @media (prefers-reduced-motion: reduce) { .skel { animation: none; } .pending [data-elapsed]::after { width: 1.1em; animation: none; } .prog.loading i { animation: fill .2s forwards; } }
+  .topic { flex: none; margin-left: 0; padding: 1px 7px; border-radius: var(--radius-pill); background: var(--surface-sunken); color: var(--ink-muted); font: 500 10px/14px var(--font-mono); letter-spacing: .04em; text-transform: uppercase; }
+  .sec .topic { margin-left: 8px; }
+  .swap { animation: fade .18s ease-out; }
   .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--live); animation: pulse 1s infinite ease-in-out; flex: none; }
   .labs { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lab { color: var(--ink); }

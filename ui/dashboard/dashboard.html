@@ -46,6 +46,16 @@
       .spark i:last-child { opacity: 1; }
       .spark i[title] { cursor: default; }
       .hint { cursor: help; border-bottom: 1px dotted var(--ink-muted); }
+      .topic { margin-right: 6px; padding: 1px 7px; border-radius: var(--radius-pill); background: var(--surface-sunken); color: var(--ink-muted); font: 500 10px/14px var(--font-mono); letter-spacing: .04em; text-transform: uppercase; }
+      /* loading skeletons until the log is read */
+      body.loading .readout, body.loading #rank, body.loading #src, body.loading #posts { color: transparent; position: relative; min-height: 24px; }
+      body.loading .readout::after, body.loading #rank::after, body.loading #src::after, body.loading #posts::after { content: ""; position: absolute; inset: 4px 0; border-radius: var(--radius-sm);
+        background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--hairline) 50%, var(--surface-sunken) 75%) 200% 0 / 200% 100%; animation: shimmer 1.4s linear infinite; }
+      @keyframes shimmer { to { background-position: 0 0; } }
+      #sync { opacity: 0; transition: opacity .2s; display: inline-flex; align-items: center; gap: 6px; }
+      #sync::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--clean); }
+      #sync.on { opacity: 1; }
+      @media (prefers-reduced-motion: reduce) { body.loading *::after { animation: none; } }
       .sub { color: var(--ink-muted); font-size: 13px; }
 
       .dist { display: flex; height: 8px; border-radius: var(--radius-pill); overflow: hidden; background: var(--surface-sunken); margin-bottom: 8px; }
@@ -122,7 +132,7 @@
   <body>
     <main>
       <div class="hd">
-        <div><div class="micro">Analysis dashboard</div><h1>Fedo Shield</h1></div>
+        <div><div class="micro">Analysis dashboard <span id="sync" class="micro"></span></div><h1>Fedo Shield</h1></div>
         <div class="tools">
           <div class="seg" role="radiogroup" aria-label="Time window">
             <label><input type="radio" name="win" value="today" />Today</label>

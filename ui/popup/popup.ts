@@ -40,6 +40,7 @@ function renderThreshold(v: number) {
 async function init() {
   applyTheme(await loadPrefs());
   renderStats(await loadStats());
+  document.body.classList.remove("loading");
   const settings = await send({ type: "fedo/getSettings" }); // needs the extension context
   $<HTMLInputElement>("enabled").checked = settings.enabled;
   renderThreshold(settings.minScore);

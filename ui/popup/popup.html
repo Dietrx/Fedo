@@ -29,6 +29,8 @@
       .c.br { bottom: 6px; right: 6px; border-left: 0; border-top: 0; border-bottom-right-radius: 4px; }
       .micro { font: 600 11px/14px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); }
       .readout { font: 700 28px/32px var(--font-mono); letter-spacing: -.02em; }
+      body.loading .readout { color: transparent; border-radius: var(--radius-sm); background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--hairline) 50%, var(--surface-sunken) 75%) 200% 0 / 200% 100%; animation: shimmer 1.4s linear infinite; }
+      @keyframes shimmer { to { background-position: 0 0; } }
       .sub { color: var(--ink-muted); }
       .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
       .stats h2 { margin: 0 0 4px; }
@@ -67,7 +69,7 @@
       .foot { text-align: center; }
     </style>
   </head>
-  <body>
+  <body class="loading">
     <div class="hd">
       <h1>Fedo Shield</h1>
       <label class="sw" title="Enabled"><input id="enabled" type="checkbox" /><span></span></label>
