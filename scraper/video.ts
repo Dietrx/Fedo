@@ -16,6 +16,8 @@ import { debug } from "./observe";
 type CapturableVideo = HTMLVideoElement & { captureStream?: () => MediaStream };
 
 const CHUNK_MS = 8_000;
+/** The first window is shorter so the first scores appear after ~5 s instead of ~10 s. */
+const FIRST_CHUNK_MS = 4_000;
 /** Stop after this much audio per video → a 30-minute stream doesn't turn into 200 API calls. */
 const MAX_SEC = 180;
 const SAMPLE_RATE = 16_000;
@@ -44,7 +46,7 @@ export function watchVideos(sink: ScraperSink): () => void {
       for (const e of entries) {
         const video = e.target as HTMLVideoElement;
         if (e.intersectionRatio >= 0.5 && !video.paused) start(video);
-        else if (e.intersectionRatio < 0.5) stop(video, false);
+        else if (e.intersectionRatio < 0.5) stop(video, true);
       }
     },
     { threshold: [0, 0.5, 1] },
@@ -77,7 +79,12 @@ export function watchVideos(sink: ScraperSink): () => void {
 
   /** Each chunk gets its own MediaRecorder: only a stopped recorder yields a complete, decodable file. */
   function record(cap: Capture) {
-    if (cap.stopped || cap.sentSec >= MAX_SEC) return;
+    if (cap.stopped) return;
+    if (cap.sentSec >= MAX_SEC) {
+      // Budget used up: tell the glue we are done, otherwise the UI waits for an end that never comes.
+      stop(cap.video, true);
+      return;
+    }
     let recorder: MediaRecorder;
     try {
       recorder = new MediaRecorder(cap.stream, { mimeType: "audio/webm;codecs=opus" });
@@ -90,22 +97,37 @@ export function watchVideos(sink: ScraperSink): () => void {
     recorder.ondataavailable = (e) => e.data.size && parts.push(e.data);
     recorder.onstop = () => {
       const t1 = cap.video.currentTime;
-      const ended = cap.ending || cap.video.ended;
-      void emit(cap, new Blob(parts, { type: recorder.mimeType }), cap.t0, t1, ended);
+      // Looping players (TikTok always, X for short clips) never fire "ended": the time just jumps back.
+      // One pass is all there is to hear → treat the jump as the end instead of re-listening for 3 minutes.
+      const looped = t1 < cap.t0;
+      const ended = cap.ending || cap.video.ended || looped;
+      if (looped) {
+        cap.stopped = true;
+        captures.delete(cap.video);
+      }
+      void emit(cap, new Blob(parts, { type: recorder.mimeType }), cap.t0, looped ? (duration(cap.video) ?? cap.t0) : t1, ended);
       if (!cap.stopped && !ended) record(cap);
     };
     recorder.start();
-    setTimeout(() => recorder.state === "recording" && recorder.stop(), CHUNK_MS);
+    setTimeout(() => recorder.state === "recording" && recorder.stop(), cap.sentSec === 0 ? FIRST_CHUNK_MS : CHUNK_MS);
   }
 
   async function emit(cap: Capture, blob: Blob, t0: number, t1: number, ended: boolean) {
-    if (blob.size === 0 || t1 - t0 < 0.5) return;
+    // An empty `audio` with `ended: true` = "nothing more to transcribe, close the video". It must ALWAYS go out:
+    // most videos end on a second of silence or right after a window boundary, and without it the UI shows
+    // "finishing…" forever and the transcript never becomes final.
+    const goodbye = () => ended && sink.onAudio?.({ itemId: cap.itemId, audio: "", mime: "audio/wav", t0: t1, t1, durationSec: duration(cap.video), ended: true });
+    if (blob.size === 0 || t1 - t0 < 0.5) {
+      goodbye();
+      return;
+    }
     try {
       const wav = await toWav(await blob.arrayBuffer());
       if (!wav) {
         debug("silent chunk", cap.itemId, t0.toFixed(1), "muted:", cap.video.muted);
         // Still tell the glue once, so the UI can say "unmute to analyze speech".
-        if (cap.video.muted && cap.sentSec === 0) sink.onAudio?.({ itemId: cap.itemId, audio: "", mime: "audio/wav", t0, t1, durationSec: duration(cap.video), ended });
+        if (cap.video.muted && cap.sentSec === 0 && !ended) sink.onAudio?.({ itemId: cap.itemId, audio: "", mime: "audio/wav", t0, t1, durationSec: duration(cap.video), ended: false });
+        goodbye();
         return;
       }
       cap.sentSec += t1 - t0;
@@ -114,6 +136,7 @@ export function watchVideos(sink: ScraperSink): () => void {
       sink.onAudio?.(chunk);
     } catch (e) {
       debug("audio chunk failed", e);
+      goodbye();
     }
   }
 
@@ -134,7 +157,9 @@ export function watchVideos(sink: ScraperSink): () => void {
     visible.observe(video);
     if (isOnScreen(video)) start(video);
   };
-  const onPause = (e: Event) => e.target instanceof HTMLVideoElement && stop(e.target, false);
+  // Contract: `ended` = "video ended OR capture stopped". A paused / scrolled-away video gets no more audio, so
+  // its last piece closes the session (scores become final). Pressing play again simply starts a new session.
+  const onPause = (e: Event) => e.target instanceof HTMLVideoElement && stop(e.target, true);
   const onEnded = (e: Event) => e.target instanceof HTMLVideoElement && stop(e.target, true);
 
   document.addEventListener("play", onPlay, true);

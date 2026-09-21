@@ -11,10 +11,10 @@
  */
 import type { AnalysisInput, AnalysisResult, Analyzer, Signal } from "@contracts";
 import { overall } from "./assess";
-import { MIN_WORDS, coverageOf } from "./coverage";
+import { MIN_WORDS, coverageOf, wordCount } from "./coverage";
 import { buildExplanation } from "./explain";
 import type { SeenItem } from "./state";
-import type { Vision, VisionResult } from "./vision";
+import { imageUrls, type Vision, type VisionResult } from "./vision";
 
 /** Below this the picture has no message of its own (a logo, a street sign) → not worth a second pass. */
 const MIN_IMAGE_WORDS = MIN_WORDS;
@@ -29,10 +29,23 @@ export function withVision(inner: Analyzer, vision?: Vision): Analyzer {
   if (!vision) return inner;
   return {
     async analyze(input) {
+      const t0 = Date.now();
+      const id = input.item.id;
+      if (input.item.media.length && !imageUrls(input.item).length) {
+        // e.g. a video whose only URL is a blob: and that has no poster → nothing a server could fetch
+        console.log(`[fedo:ai] vision ${id}: skipped, ${input.item.media.length} media but no fetchable image URL`);
+      }
       const looking = vision.look(input.item);
       const blind = inner.analyze(input);
-      const seen = await Promise.race([looking, new Promise<undefined>((r) => setTimeout(() => r(undefined), VISION_WAIT_MS))]);
-      if (!seen) return blind;
+      // A post that is nothing but a picture has no text-only result worth showing ("not enough text") → wait for
+      // the picture as long as vision itself allows. Everything else gets its text result after VISION_WAIT_MS.
+      const imageIsAllThereIs = wordCount(input) < MIN_WORDS;
+      const seen = imageIsAllThereIs ? await looking : await Promise.race([looking, new Promise<undefined>((r) => setTimeout(() => r(undefined), VISION_WAIT_MS))]);
+      if (!seen) {
+        if (imageUrls(input.item).length) console.log(`[fedo:ai] vision ${id}: no answer after ${Date.now() - t0} ms → text-only result`);
+        return blind;
+      }
+      console.log(`[fedo:ai] vision ${id}: ${seen.seen} image(s), ${wordsIn(seen.text)} words in image, synthetic ${seen.synthetic} (${Date.now() - t0} ms)`);
 
       const hasMessage = wordsIn(seen.text) >= MIN_IMAGE_WORDS;
       const item: SeenItem = { ...input.item, imageText: hasMessage ? calm(seen.text) : undefined, imageDescription: seen.description || undefined };
