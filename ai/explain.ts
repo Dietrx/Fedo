@@ -10,21 +10,34 @@ const MAX_SIGNALS = 3;
 
 export function buildExplanation(signals: Signal[], isVideo = false, note?: string): string | undefined {
   const { drivers } = assess(signals);
-  const top = drivers.slice(0, MAX_SIGNALS);
-  if (!top.length) return undefined;
+  // `synthetic_media` is about the PICTURE, everything else about wording → two different sentences.
+  const synthetic = drivers.find((s) => s.key === "synthetic_media");
+  const wording = drivers.filter((s) => s.key !== "synthetic_media");
+  const top = wording.slice(0, MAX_SIGNALS);
+  if (!top.length && !synthetic) return undefined;
 
-  const subject = isVideo ? "The spoken text and caption of this video show" : "The wording of this post shows";
-  // One sentence often carries several techniques → quote it once, not once per technique.
-  const quoted = new Set<string>();
-  const parts = top.map((s) => {
-    const raw = SIGNALS[s.key].label;
-    const label = raw.charAt(0).toLowerCase() + raw.slice(1);
-    if (!s.evidence || quoted.has(s.evidence)) return label;
-    quoted.add(s.evidence);
-    return `${label} (“${s.evidence}”)`;
-  });
-  const more = drivers.length > top.length ? ` and ${drivers.length - top.length} more` : "";
-  return `${note ? note + " " : ""}${subject} patterns of ${joinList(parts)}${more}. This describes techniques in the text, not whether the message is true or what the author intends.`;
+  const sentences: string[] = [];
+  if (note) sentences.push(note);
+  if (top.length) {
+    const subject = isVideo ? "The spoken text and caption of this video show" : "The wording of this post shows";
+    // One sentence often carries several techniques → quote it once, not once per technique.
+    const quoted = new Set<string>();
+    const parts = top.map((s) => {
+      const raw = SIGNALS[s.key].label;
+      const label = raw.charAt(0).toLowerCase() + raw.slice(1);
+      if (!s.evidence || quoted.has(s.evidence)) return label;
+      quoted.add(s.evidence);
+      return `${label} (“${s.evidence}”)`;
+    });
+    const more = wording.length > top.length ? ` and ${wording.length - top.length} more` : "";
+    sentences.push(`${subject} patterns of ${joinList(parts)}${more}.`);
+  }
+  if (synthetic) {
+    const why = synthetic.evidence ? `: ${synthetic.evidence.replace(/[.\s]+$/, "")}` : "";
+    sentences.push(`The image shows visible signs of AI generation or editing${why}. This is an indication, not proof.`);
+  }
+  sentences.push(top.length ? "This describes techniques in the text, not whether the message is true or what the author intends." : "This says nothing about whether the message is true or what the author intends.");
+  return sentences.join(" ");
 }
 
 function joinList(parts: string[]): string {

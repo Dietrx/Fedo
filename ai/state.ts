@@ -2,7 +2,18 @@
  * Turns an AnalysisInput into the compact textual state that Jev (or any LLM) gets to see.
  * Video: spoken text + captions + post metadata. Vision output can be added here later.
  */
-import type { AnalysisInput } from "@contracts";
+import type { AnalysisInput, FeedItem } from "@contracts";
+
+/**
+ * ai-internal: a FeedItem after vision.ts looked at its pictures. Not part of the contract:
+ * the fields are added inside ai/ (with-vision.ts) and only read by the state builders below.
+ */
+export interface SeenItem extends FeedItem {
+  /** text written IN the image(s): meme text, overlaid headline, screenshot. Part of the message → scored like post text. */
+  imageText?: string;
+  /** our neutral one-line description of the picture: context for the model, never scored or quoted as the author's words */
+  imageDescription?: string;
+}
 
 /**
  * `item.captions` = the platform's full caption file. When the same captions also arrive as transcript
@@ -25,6 +36,9 @@ export function buildState(input: AnalysisInput): string {
   const captions = captionsOf(input);
   if (captions) lines.push(`captions: ${captions}`);
   if (item.media.length) lines.push(`media: ${item.media.map((m) => m.type + (m.altText ? ` (alt: ${m.altText})` : "")).join(", ")}`);
+  const seen = item as SeenItem;
+  if (seen.imageText) lines.push(`text_in_image: ${seen.imageText}`);
+  if (seen.imageDescription) lines.push(`image_shows: ${seen.imageDescription}`);
   if (input.kind === "transcript") {
     lines.push(`spoken_text: ${input.transcript.map((c) => c.text).join(" ")}`);
   }
@@ -34,7 +48,7 @@ export function buildState(input: AnalysisInput): string {
 export function allText(input: AnalysisInput): string {
   const { item } = input;
   const spoken = input.kind === "transcript" ? input.transcript.map((c) => c.text).join(" ") : "";
-  return [item.text, item.quotedText, captionsOf(input), spoken].filter(Boolean).join(" ");
+  return [item.text, (item as SeenItem).imageText, item.quotedText, captionsOf(input), spoken].filter(Boolean).join(" ");
 }
 
 /**
@@ -43,7 +57,7 @@ export function allText(input: AnalysisInput): string {
  * (quoting something is not the same as saying it).
  */
 export interface Segment {
-  source: "text" | "captions" | "spoken" | "hashtags" | "quoted" | "alt";
+  source: "text" | "image" | "captions" | "spoken" | "hashtags" | "quoted" | "alt";
   text: string;
   weight: number;
 }
@@ -51,6 +65,9 @@ export interface Segment {
 export function buildSegments(input: AnalysisInput): Segment[] {
   const { item } = input;
   const segments: Segment[] = [{ source: "text", text: item.text, weight: 1 }];
+  // Text inside the picture is what the author chose to show → almost full weight (OCR can misread a word).
+  const imageText = (item as SeenItem).imageText;
+  if (imageText) segments.push({ source: "image", text: imageText, weight: 0.9 });
   const captions = captionsOf(input);
   if (captions) segments.push({ source: "captions", text: captions, weight: 1 });
   if (input.kind === "transcript") {
@@ -81,6 +98,9 @@ export function buildStateObject(input: AnalysisInput): Record<string, unknown> 
     post_text: item.text,
   };
   if (item.hashtags.length) state.hashtags = item.hashtags.map((h) => "#" + h);
+  const seen = item as SeenItem;
+  if (seen.imageText) state.text_written_in_the_image = seen.imageText;
+  if (seen.imageDescription) state.image_shows = seen.imageDescription;
   const captions = captionsOf(input);
   if (captions) state.video_captions = captions;
   if (input.kind === "transcript") state.spoken_text = input.transcript.map((c) => c.text).join(" ");
