@@ -10,6 +10,23 @@
 
 ---
 
+## 2026-09-21 · `ai/local-engine` · AI · Lokale Scoring-Engine ersetzt die Keyword-Heuristik
+
+**Was hat sich geändert:**
+- `ai/` bewertet Posts jetzt mit einer echten lokalen Engine (EN + DE): gewichtete Formulierungen pro Signal,
+  Stilmerkmale, Kontextregeln, `evidence`-Zitat pro Signal, `explanation` und `overall` (Gesamtstufe).
+- Modus `mock` = diese Engine (offline, kein API-Key). Modus `jev` nutzt sie für Evidence und als Fallback bei API-Fehlern.
+- `callJev()` ist weiterhin ein Skelett (TypeSafe-Format fehlt noch).
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, in chrome://extensions auf ↻
+- Falsch bewerteter Post gesehen? Text an den AI-Dev schicken → wird Testfall in `ai/dev/cases.ts`.
+
+**Wichtig zu wissen:** Ergebnisse haben weiterhin `source: "mock"`, sind aber keine Platzhalter mehr.
+Die simulierte Latenz ist weg → `pending` ist im echten Feed nur noch sehr kurz sichtbar.
+
+---
+
 ## 2026-09-21 · `contracts/overall-intensity` · Contracts (AI → UI) · Neues optionales Feld `AnalysisResult.overall`
 
 **Was hat sich geändert:**

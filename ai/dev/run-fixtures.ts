@@ -24,4 +24,6 @@ for (const item of FIXTURE_ITEMS) {
   for (const s of [...result.signals].sort((a, b) => b.score - a.score).filter((s) => s.score >= 0.5)) {
     console.log(`   ${(s.score * 100).toFixed(0).padStart(3)}%  ${SIGNALS[s.key].label}${s.evidence ? `  ← "${s.evidence}"` : ""}`);
   }
+  if (result.overall) console.log(`   intensity: ${result.overall.level} (${result.overall.score})`);
+  if (result.explanation) console.log(`   why: ${result.explanation}`);
 }

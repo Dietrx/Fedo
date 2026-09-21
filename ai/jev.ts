@@ -10,6 +10,10 @@
  */
 import { SIGNAL_KEYS, SIGNALS, type Analyzer, type Signal, type SignalKey } from "@contracts";
 import { buildState } from "./state";
+import { buildExplanation } from "./explain";
+import { overall } from "./assess";
+import { scoreSignals } from "./engine";
+import { analyzeLocally, isPartial } from "./mock";
 
 interface JevDecision {
   key: SignalKey;
@@ -25,13 +29,25 @@ export function createJevAnalyzer(apiUrl: string, apiKey: string): Analyzer {
   return {
     async analyze(input) {
       const t0 = Date.now();
-      const state = buildState(input);
-      const scores = await callJev(apiUrl, apiKey, state, DECISIONS);
-      const signals: Signal[] = DECISIONS.map((d) => ({ key: d.key, score: clamp(scores[d.key] ?? 0) }));
+      // The local engine always runs: it provides the evidence quotes, and the result if Jev fails.
+      const local = scoreSignals(input);
+      let scores: Partial<Record<SignalKey, number>>;
+      try {
+        scores = await callJev(apiUrl, apiKey, buildState(input), DECISIONS);
+      } catch (e) {
+        console.warn("[fedo:ai] Jev failed → local engine result:", e);
+        return analyzeLocally(input, t0);
+      }
+      const signals: Signal[] = DECISIONS.map((d) => {
+        const score = clamp(scores[d.key] ?? 0);
+        return { key: d.key, score, evidence: score >= 0.3 ? local.find((l) => l.key === d.key)?.evidence : undefined };
+      });
       return {
         itemId: input.item.id,
         signals,
-        partial: input.kind === "transcript" && !input.transcript.at(-1)?.isFinal,
+        overall: overall(signals),
+        explanation: buildExplanation(signals, input.kind === "transcript"),
+        partial: isPartial(input),
         source: "jev",
         latencyMs: Date.now() - t0,
       };
