@@ -10,6 +10,38 @@
 
 ---
 
+## 2026-09-21 · `main @ ba4deab` · Scraper · TikTok liest Item-JSON + Untertitel, lokales Speech-to-Text, Transcript-Kanal live
+
+**Was hat sich geändert:**
+- Neues MAIN-world-Skript `scraper/main-world.ts` (Manifest: zweiter `content_scripts`-Eintrag mit `"world": "MAIN"`,
+  Build: Entry `dist/main-world.js`). Es liest das TikTok-Item-JSON und X-GraphQL-Antworten aus fetch/XHR und reicht sie
+  an den Scraper weiter — der TikTok-For-You-DOM trägt keine Video-ID, deshalb braucht es diesen Weg.
+- TikTok-Adapter neu: echte IDs (`tiktok:<id>`), Autor, Text, Hashtags, Medien, Erstellzeit, Untertitel in `item.captions`.
+  `onItem` kommt, **bevor** das Video läuft. `onItemRemoved` wird gerufen, wenn TikTok den Artikel recycelt (Wunsch UI-Dev).
+- `sink.onTranscript` läuft: Plattform-Untertitel (WebVTT) im Takt der Wiedergabe, und für Videos **ohne** Untertitel lokales
+  Speech-to-Text über `whisper-server` (kein `chrome.tabCapture` nötig — die offene Frage aus dem `ai/live-video`-Eintrag).
+  Erster Chunk ~1 s nach Videostart, ein Job zur Zeit, Abbruch beim Weiterscrollen.
+- X: GraphQL-/Syndication-Mapper mit Cache (Fixture-getestet), DOM-Pfad unverändert. Live eingeloggt noch nicht verifiziert.
+- Tests: `npm run test:scraper` (17 Tests, node:test + tsx, keine neue Abhängigkeit).
+  Doku: `scraper/RESEARCH.md` (Messungen, Datenwege je Feld, Coverage-Tabelle, offene Punkte).
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build` + in chrome://extensions auf ↻ (Manifest hat sich geändert → Extension wirklich neu laden)
+- Für Video-Transkripte ohne Untertitel: `bash scraper/companion/whisper-server.sh` in einem eigenen Terminal
+  (braucht `brew install whisper-cpp` + Modell, Hinweise stehen im Skript). Ohne Server gibt es Transkripte nur bei Untertitel-Videos.
+
+**Wichtig zu wissen:**
+- **AI-Dev:** Bei Videos mit Untertiteln kommt der Text in `item.captions` UND als `onTranscript`-Chunks (RESEARCH.md §10).
+  Empfehlung: bei `kind: "transcript"` das Feld `captions` im State weglassen, wenn `transcript[0].source === "captions"`.
+- **Team:** Vorschlag als nächste Contract-Erweiterung (eigener kleiner PR): vier optionale Felder `language`, `stats`,
+  `stickerTexts`, `communityNote` (Typen in RESEARCH.md §9.2).
+- **Glue (`extension/src/background.ts`):** cached `kind: "post"` je `item.id`, ein zweites `onItem` mit mehr Daten wird
+  verschluckt. Vorschlag: Cache-Eintrag verwerfen, wenn ein zweites `onItem` derselben ID längeren Text bringt.
+- Offen: X eingeloggt live prüfen (Sonde in `scraper/research/console-probes/`), echte Extension auf tiktok.com —
+  zeigt die Konsole einen Fehler mit `127.0.0.1`, gilt der Reserveweg aus RESEARCH.md §12.
+
+---
+
 ## 2026-09-21 · `ai/irony-and-memes` · AI · Ironie, Satire und Memes werden erkannt
 
 **Was hat sich geändert:**
