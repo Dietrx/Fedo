@@ -41,10 +41,10 @@ export function createJevAnalyzer(apiUrl: string, apiKey: string): Analyzer {
         return analyzeLocally(input, t0);
       }
       // Jev returns probabilities only → the quote that explains a score comes from the local engine.
-      const local = scoreSignals(input);
+      const local = new Map(scoreSignals(input).map((l) => [l.key, l]));
       const signals: Signal[] = JEV_KEYS.map((key) => {
-        const score = clamp(scores[key] ?? 0);
-        return { key, score, evidence: score >= 0.3 ? local.find((l) => l.key === key)?.evidence : undefined };
+        const score = round(fuse(key, clamp(scores[key] ?? 0), local.get(key)?.score ?? 0, Boolean(input.item.quotedText)));
+        return { key, score, evidence: score >= 0.3 ? local.get(key)?.evidence : undefined };
       });
       return {
         itemId: input.item.id,
@@ -57,6 +57,23 @@ export function createJevAnalyzer(apiUrl: string, apiKey: string): Analyzer {
       };
     },
   };
+}
+
+/**
+ * Signals that are DEFINED by surface patterns (a number without a source, a discount code, "like and RT").
+ * Measured on ai/dev/cases.ts: Jev over-fires on these (any declarative sentence looks like a "factual claim"),
+ * while the local cues are precise. So both have to agree: without local support the Jev score is
+ * scaled to below the 0.5 display threshold.
+ */
+const PATTERN_SIGNALS = new Set<SignalKey>(["factual_claim", "commercial_persuasion", "engagement_bait", "possible_ai_slop"]);
+
+function fuse(key: SignalKey, jev: number, local: number, hasQuote: boolean): number {
+  let score = jev;
+  if (PATTERN_SIGNALS.has(key)) score = jev * (0.45 + 0.55 * Math.min(1, local / 0.5));
+  // The quoted post is not part of the Jev state (Jev can't weigh it down as "someone else's words").
+  // The local engine scores it at reduced weight → take that if it is higher.
+  if (hasQuote) score = Math.max(score, local);
+  return score;
 }
 
 interface DecisionsResponse {
@@ -83,4 +100,5 @@ async function callJev(endpoint: string, apiKey: string, model: string, state: R
   return scores;
 }
 
+const round = (n: number) => Math.round(n * 100) / 100;
 const clamp = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0);

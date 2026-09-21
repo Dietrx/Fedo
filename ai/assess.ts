@@ -3,7 +3,7 @@
  *
  * Not every technique weighs the same: dehumanizing language or scapegoating matter far more than
  * a "like and RT". `SEVERITY` declares that ranking. A signal only counts once it is likely
- * present (≥ COUNT_FROM), and several techniques stack (noisy-OR), so a post that combines
+ * present (≥ COUNT_FROM), and several techniques stack (noisy-OR with diminishing returns), so a post that combines
  * fear + out-group + conspiracy framing ends up higher than one with a single loud signal.
  *
  * Wording principle: this measures how heavily persuasion TECHNIQUES are used —
@@ -37,13 +37,20 @@ export const SEVERITY: Record<SignalKey, number> = {
 };
 
 const COUNT_FROM = 0.5;
+/** Calibrated on ai/dev/cases.ts for BOTH analyzers (local scores run lower than Jev's). Re-run the eval after changing. */
+const HIGH_FROM = 0.82;
+const MEDIUM_FROM = 0.45;
+const RANK_DECAY = [1, 0.6, 0.4, 0.3];
+const RANK_DECAY_REST = 0.2;
 
 export function assess(signals: Signal[]): Assessment {
   const drivers = signals
     .filter((s) => s.score >= COUNT_FROM && SEVERITY[s.key] > 0)
     .sort((a, b) => b.score * SEVERITY[b.key] - a.score * SEVERITY[a.key]);
-  const score = 1 - drivers.reduce((p, s) => p * (1 - s.score * SEVERITY[s.key]), 1);
-  const level: IntensityLevel = !drivers.length ? "none" : score >= 0.8 ? "high" : score >= 0.45 ? "medium" : "low";
+  // Diminishing returns: the strongest technique counts fully, each further one less. Without this,
+  // a handful of medium signals (which tend to fire together) would push almost any post to "high".
+  const score = 1 - drivers.reduce((p, s, i) => p * (1 - s.score * SEVERITY[s.key] * (RANK_DECAY[i] ?? RANK_DECAY_REST)), 1);
+  const level: IntensityLevel = !drivers.length ? "none" : score >= HIGH_FROM ? "high" : score >= MEDIUM_FROM ? "medium" : "low";
   return { level, score: Math.round(score * 100) / 100, drivers };
 }
 

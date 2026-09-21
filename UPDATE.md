@@ -10,6 +10,25 @@
 
 ---
 
+## 2026-09-21 · `ai/llm-openrouter` · AI · Echte Analyse mit Jev (TypeSafe) über OpenRouter
+
+**Was hat sich geändert:**
+- `ai/jev.ts` spricht jetzt die echte Jev-API (OpenRouter Decisions API): eine Ja/Nein-Frage pro Signal → Wahrscheinlichkeit.
+  ~0,3–1 s pro Post. Jev-Scores werden mit der lokalen Engine fusioniert (weniger Fehlalarme), Evidence-Zitate kommen lokal.
+- Fehler, Timeout oder leeres Guthaben → automatisch Ergebnis der lokalen Engine (`source: "mock"`), nie ein Error im Feed.
+- Alternative: beliebiges Chat-Modell, wenn `JEV_API_URL` auf `/chat/completions` endet (`ai/llm.ts`).
+
+**Was musst du tun:**
+- `git pull --rebase origin main`
+- Für echte Analyse in `.env` (nie committen!): `FEDO_ANALYZER=jev`, `JEV_API_URL=https://openrouter.ai/api/alpha/decisions`,
+  `JEV_API_KEY=<OpenRouter-Key, beim AI-Dev erfragen>` → `npm run build` → in chrome://extensions auf ↻
+- Ohne `.env` läuft alles wie bisher mit der lokalen Engine.
+
+**Wichtig zu wissen:** Der Key wird beim Build in `dist/background.js` eingebettet → `dist/` niemals weitergeben oder committen
+(ist in `.gitignore`). Im Jev-Modus gehen Post-Texte an OpenRouter/TypeSafe.
+
+---
+
 ## 2026-09-21 · `ai/local-engine` · AI · Lokale Scoring-Engine ersetzt die Keyword-Heuristik
 
 **Was hat sich geändert:**

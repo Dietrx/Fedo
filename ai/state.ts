@@ -59,7 +59,8 @@ export function buildSegments(input: AnalysisInput): Segment[] {
 
 /**
  * Structured state for Jev. TypeSafe recommends an object with descriptive field names over one long
- * string, so the model can tell the author's own words from a quoted post or spoken text.
+ * string, so the model can tell the post text from captions or spoken text.
+ * The quoted post is deliberately left out: Jev scores it as if the author had said it (see fuse() in jev.ts).
  */
 export function buildStateObject(input: AnalysisInput): Record<string, unknown> {
   const { item } = input;
@@ -71,7 +72,6 @@ export function buildStateObject(input: AnalysisInput): Record<string, unknown> 
   if (item.hashtags.length) state.hashtags = item.hashtags.map((h) => "#" + h);
   if (item.captions) state.video_captions = item.captions;
   if (input.kind === "transcript") state.spoken_text = input.transcript.map((c) => c.text).join(" ");
-  if (item.quotedText) state.quoted_post_by_someone_else = item.quotedText;
   const alt = item.media.map((m) => m.altText).filter(Boolean);
   if (alt.length) state.image_descriptions = alt;
   return state;
