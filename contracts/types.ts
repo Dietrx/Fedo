@@ -35,6 +35,8 @@ export interface FeedItem {
   isRepost?: boolean;
   createdAt?: string;
   scrapedAt: number;
+  /** "draft" = the user's own text in the compose box (analyzed live while typing). Default: "post". */
+  kind?: "post" | "draft";
 }
 
 /** A piece of spoken text for a video item (from platform captions or live STT). */
@@ -113,7 +115,14 @@ export interface AnalysisResult {
   timeline?: TimelineEvent[];
   /** true while a video is still being analyzed live (more results will follow) */
   partial?: boolean;
-  source: "mock" | "jev" | "vision" | "combined";
+  /**
+   * How much of the item the analysis could actually see. Missing = "full".
+   * "text_only": media present but not analyzed · "insufficient": too little text for any verdict.
+   * The UI must never show a clean "✓" for "insufficient".
+   */
+  coverage?: "full" | "text_only" | "insufficient";
+  /** "local" = offline engine in ai/ ("mock" kept for older results). */
+  source: "mock" | "local" | "jev" | "vision" | "combined";
   latencyMs: number;
 }
 
@@ -127,6 +136,50 @@ export interface Settings {
   enabled: boolean;
   /** signals below this score are hidden by the UI */
   minScore: number;
+  /** "local": nothing leaves the browser. "cloud": Jev (falls back to local if not configured). */
+  mode?: "local" | "cloud";
+  /** Dim (never hide) posts with overall level "high". */
+  calmMode?: boolean;
 }
 
-export const DEFAULT_SETTINGS: Settings = { enabled: true, minScore: 0.5 };
+export const DEFAULT_SETTINGS: Settings = { enabled: true, minScore: 0.5, mode: "local", calmMode: false };
+
+// ── Feed statistics ("Feed Diet") ─────────────────────────────────────────────────────
+// The background keeps one compact record per analyzed item (deduplicated by item id) and
+// aggregates them on request. Only the popup dashboard reads this. Records never leave the browser.
+
+/** One analyzed item, reduced to what the dashboard needs. Stored in chrome.storage.local. */
+export interface ExposureRecord {
+  itemId: string;
+  platform: Platform;
+  /** author handle, used for "top sources" */
+  author: string;
+  /** ms since epoch, when the item was first analyzed in this browser */
+  t: number;
+  level: IntensityLevel;
+  /** overall score 0..1 */
+  score: number;
+  /** signal keys with score >= 0.5 */
+  signals: SignalKey[];
+  source: AnalysisResult["source"];
+}
+
+export type StatsWindow = "session" | "today" | "7d" | "all";
+
+export interface FeedStats {
+  window: StatsWindow;
+  /** ms since epoch: start of the window that was actually applied */
+  since: number;
+  /** items analyzed in the window (deduplicated) */
+  total: number;
+  byLevel: Record<IntensityLevel, number>;
+  /** items where the signal fired (>= 0.5), per signal key */
+  bySignal: Partial<Record<SignalKey, number>>;
+  /** items where at least one signal of the group fired */
+  byGroup: Record<"political" | "rhetoric" | "credibility" | "synthetic", number>;
+  byPlatform: Partial<Record<Platform, number>>;
+  /** authors ranked by medium+high items, then by total items */
+  topSources: { author: string; platform: Platform; items: number; flagged: number; topSignal?: SignalKey }[];
+  /** share of items that were medium or high, 0..1 */
+  flaggedShare: number;
+}
