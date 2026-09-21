@@ -98,7 +98,6 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
 function track(e: Entry, r: AnalysisResult) {
   if (!r.partial && !e.liveStart) return;
   if (!e.liveStart) e.liveStart = Date.now();
-  if (r.partial) e.expanded = true;
   const t = (Date.now() - e.liveStart) / 1000;
   for (const s of r.signals) {
     const prev = e.peak.get(s.key) ?? 0;
@@ -122,33 +121,39 @@ function animateMeters(e: Entry) {
 const visible = (r: AnalysisResult, min: number) => r.signals.filter((s) => s.score >= min).sort((a, b) => b.score - a.score);
 
 function renderView(e: Entry, state: OverlayState, minScore: number, cb: boolean): string {
-  if (state.status === "pending") return `<div class="bar"><span class="dot"></span><span class="muted">Analyzing…</span></div>`;
-  if (state.status === "error") return `<div class="bar"><span class="muted">Analysis unavailable</span></div>`;
+  if (state.status === "pending") return `<div class="strip"><span class="dot"></span><span class="muted">Analyzing</span></div>`;
+  if (state.status === "error") return `<div class="strip"><span class="muted">Analysis unavailable</span></div>`;
 
   const { result } = state;
   const shown = visible(result, minScore);
-  const live = result.partial ? `<span class="live"><i></i>LIVE</span>` : "";
-  if (!shown.length && !result.partial) return `<div class="bar clean">${CHECK}No strong signals</div>`;
+  if (!shown.length && !result.partial) return `<div class="strip muted">${CHECK}No strong signals</div>`;
 
-  const chips = shown.slice(0, 3).map((s) => chip(s, cb)).join("");
+  // The strip: LIVE · up to three labels with a category dot · +N · Details ›   (colour only on the dots)
+  const live = result.partial ? `<span class="live"><i></i>LIVE</span>` : "";
+  const labels = shown.slice(0, 3).map((s) => label(s, cb)).join(`<span class="sep">·</span>`);
   const more = shown.length > 3 ? `<span class="more">+${shown.length - 3}</span>` : "";
-  const bar = `<div class="bar">${live}${chips}${more}<button data-toggle class="btn primary">${e.expanded ? "Hide" : "Why?"}</button></div>`;
-  return bar + (e.expanded ? panel(e, result, shown, cb) : "");
+  const toggle = `<button data-toggle class="details">${e.expanded ? "Hide" : "Details"} <span class="chev">${e.expanded ? "‹" : "›"}</span></button>`;
+  return `<div class="strip">${live}<span class="labs">${labels}${more}</span>${toggle}</div>` + (e.expanded ? panel(e, result, shown, cb) : "");
 }
 
-function chip(s: Signal, cb: boolean): string {
+function label(s: Signal, cb: boolean): string {
   const g = groupOf(s.key);
-  return `<span class="chip ${level(s.score)}" data-group="${g}">${cb ? `<span class="glyph">${GLYPH[g]}</span>` : ""}${esc(SIGNALS[s.key].label)} <b>${pct(s.score)}</b></span>`;
+  const mark = cb ? `<span class="glyph">${GLYPH[g]}</span>` : `<span class="k"></span>`;
+  return `<span class="lab" data-group="${g}">${mark}${esc(SIGNALS[s.key].label)} <b>${pct(s.score)}</b></span>`;
 }
 
 function panel(e: Entry, r: AnalysisResult, shown: Signal[], cb: boolean): string {
   const isLive = !!e.liveStart;
   const rows = (isLive ? r.signals.filter((s) => s.score >= 0.3).sort((a, b) => b.score - a.score) : shown).map((s) => row(s, cb)).join("");
-  const elapsed = isLive ? mmss((Date.now() - e.liveStart!) / 1000) : "";
+  const tl = r.timeline ?? [];
+  const elapsed = isLive ? mmss(tl.length ? tl[tl.length - 1]!.t : (Date.now() - e.liveStart!) / 1000) : "";
   const head = isLive
     ? `<div class="head">${r.partial ? `<span class="live"><i></i>LIVE</span>` : `<span class="t">DONE</span>`}<span class="t">${elapsed}</span></div>`
-    : `<div class="head"><h3>Why am I seeing this?</h3><button data-toggle class="btn ghost">Hide</button></div>`;
-  const log = isLive && e.log.length ? `<div class="log">${e.log.map((l) => logLine(l, cb)).join("")}</div>` : "";
+    : `<div class="head"><h3>Why am I seeing this?</h3><button data-toggle class="btn ghost">Hide</button></div>`
+      + (r.overall && r.overall.level !== "none" ? `<p class="muted" style="margin:0 0 8px">Overall use of persuasion techniques: <b class="lvl">${r.overall.level} · ${pct(r.overall.score)}</b></p>` : "");
+  // the AI's own timeline (t = seconds since video start) beats our derived log
+  const events = tl.length ? tl : e.log;
+  const log = isLive && events.length ? `<div class="log">${events.map((l) => logLine(l, cb)).join("")}</div>` : "";
   return `
     <div class="panel${isLive ? " tracker" : ""}">
       ${isLive ? `<i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>` : ""}
@@ -172,14 +177,13 @@ function row(s: Signal, cb: boolean): string {
     </div>`;
 }
 
-function logLine(l: Entry["log"][number], cb: boolean): string {
+function logLine(l: { t: number; key: Signal["key"]; evidence?: string }, cb: boolean): string {
   const g = groupOf(l.key);
   const mark = cb ? `<span class="glyph">${GLYPH[g]}</span> ` : `<span class="k"></span>`;
   return `<div><span class="t">${mmss(l.t)}</span><span data-group="${g}">${mark}${esc(SIGNALS[l.key].label)}${l.evidence ? ` · <q>${esc(l.evidence)}</q>` : ""}</span></div>`;
 }
 
 const CHECK = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3 3 7-7"/></svg>`;
-const level = (score: number) => (score >= 0.85 ? "high" : score >= 0.65 ? "mid" : "low");
 const pct = (score: number) => `${Math.round(score * 100)}%`;
 const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
