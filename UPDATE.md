@@ -10,6 +10,27 @@
 
 ---
 
+## 2026-09-21 · `main @ 35d0149` · UI · Festes Panel oben rechts statt Zeile unter jedem Post
+
+**Was hat sich geändert:**
+- **Neues Standard-Layout „Top right":** ein festes Panel oben rechts (`fedo-hud`, Shadow DOM), das beim Scrollen immer den gerade sichtbaren
+  Post zeigt – Autor, Gesamtstufe, Fortschrittslinie während die KI arbeitet, Labels, „Details ›" (Per-Post-Dashboard klappt im Panel auf),
+  Button **Dashboard ↗**. Im Feed selbst steht dann nichts mehr. Alternative „Under post" (die Zeile) bleibt: Popup → „Show results".
+- Sichtbarer Post = `IntersectionObserver` über die Anker-Elemente (`article`), die der Scraper liefert; funktioniert auf jeder Seite, auf der
+  `onItem(item, anchor)` einen Anker gibt.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, ↻ in chrome://extensions.
+- **Felix (Glue, 1 Eintrag in `extension/manifest.json`):**
+  `"web_accessible_resources": [{ "resources": ["dashboard.html"], "matches": ["https://x.com/*", "https://twitter.com/*", "https://www.tiktok.com/*"] }]`
+  – damit der Dashboard-Button im Panel die Seite aus dem Content Script öffnen kann. Ohne den Eintrag zeigt der Button „Use the Fedo icon"
+  (Popup → Open dashboard funktioniert immer).
+- **Scraper-Dev:** `onItemRemoved(itemId)` ist jetzt wichtiger: das Panel folgt nur Ankern, die noch im DOM sind.
+
+**Wichtig zu wissen:** Playground (`npm run dev:ui`) hat ein Layout-Dropdown zum Vergleichen.
+
+---
+
 ## 2026-09-21 · `main @ ec9b14b` · UI (+2 Zeilen Glue) · Analyse-Dashboard, Per-Post-Log, Contract-Abgleich
 
 **Was hat sich geändert:**
