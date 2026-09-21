@@ -15,6 +15,7 @@ function applyTheme(p: UiPrefs) {
   $<HTMLInputElement>("colorBlind").checked = p.colorBlind;
   $<HTMLInputElement>("slopCover").checked = p.slopCover;
   document.querySelectorAll<HTMLInputElement>('input[name="theme"]').forEach((r) => (r.checked = r.value === p.theme));
+  document.querySelectorAll<HTMLInputElement>('input[name="layout"]').forEach((r) => (r.checked = r.value === p.layout));
 }
 
 const LABEL = { political: "Political", rhetoric: "Rhetoric", credibility: "Credibility", synthetic: "Synthetic" } as const;
@@ -49,6 +50,8 @@ minScore.addEventListener("input", () => renderThreshold(1.2 - Number(minScore.v
 minScore.addEventListener("change", () => send({ type: "fedo/setSettings", settings: { minScore: Math.round((1.2 - Number(minScore.value)) * 100) / 100 } }));
 document.querySelectorAll<HTMLInputElement>('input[name="theme"]').forEach((r) =>
   r.addEventListener("change", async () => applyTheme(await savePrefs({ theme: r.value as UiPrefs["theme"] }))));
+document.querySelectorAll<HTMLInputElement>('input[name="layout"]').forEach((r) =>
+  r.addEventListener("change", async () => applyTheme(await savePrefs({ layout: r.value as UiPrefs["layout"] }))));
 $("colorBlind").addEventListener("change", async (e) => applyTheme(await savePrefs({ colorBlind: (e.target as HTMLInputElement).checked })));
 $("slopCover").addEventListener("change", async (e) => applyTheme(await savePrefs({ slopCover: (e.target as HTMLInputElement).checked })));
 $("reset").addEventListener("click", () => resetStats());

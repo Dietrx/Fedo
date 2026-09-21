@@ -6,10 +6,18 @@
 import type { AnyGroup } from "./theme";
 import type { ThemePref } from "./theme";
 
-export interface UiPrefs { theme: ThemePref; colorBlind: boolean; /** cover posts that look like mass-produced AI content */ slopCover: boolean }
+export type Layout = "hud" | "strip";
+export interface UiPrefs {
+  theme: ThemePref;
+  colorBlind: boolean;
+  /** cover posts that look like mass-produced AI content */
+  slopCover: boolean;
+  /** "hud": one fixed panel top-right that follows the post in view · "strip": a line under each post */
+  layout: Layout;
+}
 export interface Stats { analyzed: number; withSignals: number; byGroup: Record<AnyGroup, number> }
 
-export const DEFAULT_PREFS: UiPrefs = { theme: "system", colorBlind: false, slopCover: true };
+export const DEFAULT_PREFS: UiPrefs = { theme: "system", colorBlind: false, slopCover: true, layout: "hud" };
 export const EMPTY_STATS: Stats = { analyzed: 0, withSignals: 0, byGroup: { political: 0, rhetoric: 0, credibility: 0, synthetic: 0, other: 0 } };
 
 const PREFS_KEY = "fedo.ui.prefs";

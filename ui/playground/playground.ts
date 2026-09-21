@@ -6,6 +6,7 @@
 import { FIXTURE_ITEMS, FIXTURE_RESULTS, type AnalysisResult, type OverlayRenderer } from "@contracts";
 import { createOverlay } from "../index";
 import type { ThemeId } from "../theme";
+import type { Layout } from "../prefs";
 
 const feed = document.getElementById("feed")!;
 // extra playground-only case: a paid AI-slop ad (not in contracts/fixtures.ts, so nothing outside ui/ changes)
@@ -13,6 +14,7 @@ const SLOP_ITEM = { id: "x:9001", platform: "x" as const, author: { handle: "pro
 const SLOP_RESULT: AnalysisResult = { itemId: "x:9001", source: "mock", latencyMs: 90, overall: { level: "medium", score: 0.6 }, explanation: "Generic promotional text with typical patterns of generated content.",
   signals: [{ key: "possible_ai_slop", score: 0.94, evidence: "Unlock 10x productivity" }, { key: "commercial_persuasion", score: 0.9 }, { key: "urgency_language", score: 0.7, evidence: "Limited time offer" }] };
 const themeSel = document.getElementById("theme") as HTMLSelectElement;
+const layoutSel = document.getElementById("layout") as HTMLSelectElement;
 const minSel = document.getElementById("min") as HTMLInputElement;
 const anchors = new Map<string, HTMLElement>();
 const last = new Map<string, AnalysisResult>();
@@ -32,7 +34,7 @@ function build() {
   overlay?.clear();
   const theme = themeSel.value as ThemeId;
   document.body.classList.toggle("light", theme.startsWith("light"));
-  overlay = createOverlay({ theme, minScore: Number(minSel.value), stats: false });
+  overlay = createOverlay({ theme, minScore: Number(minSel.value), stats: false, layout: layoutSel.value as Layout, dashboardUrl: "http://localhost:8766/dashboard.html" });
   for (const [id, anchor] of anchors) {
     const r = last.get(id);
     overlay.render(id, anchor, r ? { status: "done", result: r } : { status: "pending" });
@@ -72,6 +74,7 @@ function simulateLive() {
 }
 
 themeSel.addEventListener("change", build);
+layoutSel.addEventListener("change", build);
 minSel.addEventListener("input", () => { document.getElementById("minv")!.textContent = `${Math.round(Number(minSel.value) * 100)}%`; build(); });
 document.getElementById("replay")!.addEventListener("click", replay);
 document.getElementById("live")!.addEventListener("click", simulateLive);

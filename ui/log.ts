@@ -62,14 +62,20 @@ export function safeHttpUrl(u: string | undefined | null): string | undefined {
   try { const p = new URL(u); return p.protocol === "https:" || p.protocol === "http:" ? p.href : undefined; } catch { return undefined; }
 }
 
+/** Author of a post, read best-effort from its DOM element (X: data-testid="User-Name" = "Name\n@handle"; TikTok: data-e2e). */
+export function authorFrom(anchor: HTMLElement): { handle: string; displayName?: string } {
+  const q = (sel: string) => anchor.querySelector<HTMLElement>(sel)?.innerText?.trim() ?? "";
+  const userBlock = q('[data-testid="User-Name"]') || q('[data-e2e="video-author-uniqueid"]') || q('[data-e2e="browse-username"]') || q(".author");
+  const handle = (/@([A-Za-z0-9_.]+)/.exec(userBlock)?.[1] ?? userBlock.split("\n")[0] ?? "").trim() || "unknown";
+  const displayName = userBlock.includes("\n") ? userBlock.split("\n")[0]?.trim() : undefined;
+  return { handle, displayName };
+}
+
 /** Build a log entry from what the overlay has: the id, the post's DOM element and the result. */
 export function entryFrom(itemId: string, anchor: HTMLElement, r: AnalysisResult, slop: boolean): LogEntry {
   const [platform, postId] = itemId.split(":") as [Platform, string];
   const q = (sel: string) => anchor.querySelector<HTMLElement>(sel)?.innerText?.trim() ?? "";
-  // X: data-testid="User-Name" holds "Name\n@handle"; tweetText the body. TikTok: data-e2e attributes. Else: the element's text.
-  const userBlock = q('[data-testid="User-Name"]') || q('[data-e2e="video-author-uniqueid"]') || q('[data-e2e="browse-username"]');
-  const handle = (/@([A-Za-z0-9_.]+)/.exec(userBlock)?.[1] ?? userBlock.split("\n")[0] ?? "").trim() || "unknown";
-  const displayName = userBlock.includes("\n") ? userBlock.split("\n")[0]?.trim() : undefined;
+  const { handle, displayName } = authorFrom(anchor);
   const body = q('[data-testid="tweetText"]') || q('[data-e2e="video-desc"]') || q('[data-e2e="browse-video-desc"]') || anchor.innerText || "";
   const url =
     platform === "x" ? (/^\d+$/.test(postId) ? `https://x.com/i/status/${postId}` : undefined) :
