@@ -9,6 +9,7 @@
     "dev:scraper": "node scripts/build.mjs --watch --analyzer=mock",
     "dev:ai": "tsx ai/dev/run-fixtures.ts",
     "dev:ui": "node scripts/playground.mjs",
+    "test:scraper": "node --import tsx --test scraper/test/*.test.ts",
     "typecheck": "tsc --noEmit",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check": "npm run typecheck && npm run check:boundaries && npm run build"

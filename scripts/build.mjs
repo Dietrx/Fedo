@@ -30,6 +30,8 @@ const common = {
 const builds = [
   { ...common, entryPoints: ["extension/src/background.ts"], outfile: "dist/background.js", format: "esm" },
   { ...common, entryPoints: ["extension/src/content.ts"], outfile: "dist/content.js", format: "iife" },
+  // scraper's MAIN-world script (page world, see extension/manifest.json content_scripts[0])
+  { ...common, entryPoints: ["scraper/main-world.ts"], outfile: "dist/main-world.js", format: "iife" },
   { ...common, entryPoints: ["ui/popup/popup.ts"], outfile: "dist/popup.js", format: "iife" },
 ];
 

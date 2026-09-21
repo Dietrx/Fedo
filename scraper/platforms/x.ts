@@ -1,17 +1,25 @@
 /**
- * X / Twitter web: DOM extraction via MutationObserver.
- * Selectors are X's `data-testid`s — they are the most stable handles X exposes, but can change.
+ * X / Twitter web.
  *
- * TODO (scraper dev):
- *  - Alternative/boost: intercept HomeTimeline GraphQL responses (MAIN-world fetch patch) for cleaner data
- *  - Quoted posts, reposts ("reposted" social context), alt texts, video poster URLs
+ * Data path:
+ *   primary  — the GraphQL timeline entities X's app receives (`/i/api/graphql/…/HomeTimeline` etc.), handed over
+ *              by scraper/main-world.ts and mapped in ./x-graphql.ts; matched to the article by the status id in
+ *              the permalink. Gives the full text of long posts, alt texts, counts, language, Community Notes.
+ *   fallback — DOM via X's `data-testid`s (the most stable handles X exposes). Long posts are truncated there
+ *              ("Show more"), which the fallback reports in the debug log.
+ * The logged-in feed could not be observed in the research session (see scraper/RESEARCH.md → X); the DOM
+ * selectors are the ones verified by the scaffold, the GraphQL shape follows public type definitions and must
+ * be confirmed with scraper/research/console-probes/x-graphql-capture.js on a logged-in profile.
  */
 import type { FeedItem, MediaRef, Scraper } from "@contracts";
 import { debug, extractHashtags, observeFeed } from "../observe";
+import { listenBridge, mainWorldPresent } from "../bridge";
+import { isTweetResult, mapTweetResult, type MappedTweet } from "./x-graphql";
 
 const SEL = {
   post: 'article[data-testid="tweet"]',
   text: '[data-testid="tweetText"]',
+  showMore: '[data-testid="tweet-text-show-more-link"]',
   userName: '[data-testid="User-Name"]',
   photo: '[data-testid="tweetPhoto"] img',
   video: "video",
@@ -23,19 +31,34 @@ export function createXScraper(): Scraper {
   return {
     platform: "x",
     start(sink) {
-      debug("X scraper started");
-      return observeFeed(SEL.post, (article) => {
-        const item = extractPost(article);
+      const records = new Map<string, MappedTweet>(); // status id → mapped tweet from the bridge
+      debug("X scraper started", mainWorldPresent() ? "(bridge active)" : "(DOM only — main-world script not installed)");
+
+      const stopBridge = listenBridge((msg) => {
+        for (const r of msg.records) {
+          if (r.kind !== "x-tweet" || !isTweetResult(r.tweet)) continue;
+          const mapped = mapTweetResult(r.tweet);
+          if (mapped && !records.has(mapped.rawId)) records.set(mapped.rawId, mapped);
+        }
+      });
+
+      const stopFeed = observeFeed(SEL.post, (article) => {
+        const item = extractPost(article, records);
         if (!item) return;
         article.dataset.fedoId = item.id;
         debug("NEW POST", item);
         sink.onItem(item, article);
       });
+
+      return () => {
+        stopFeed();
+        stopBridge();
+      };
     },
   };
 }
 
-function extractPost(article: HTMLElement): FeedItem | null {
+function extractPost(article: HTMLElement, records: Map<string, MappedTweet>): FeedItem | null {
   // Permalink: <a href="/handle/status/123"><time/></a>
   const link = article.querySelector(SEL.statusLink)?.closest("a");
   const href = link?.getAttribute("href") ?? "";
@@ -44,9 +67,13 @@ function extractPost(article: HTMLElement): FeedItem | null {
   const handle = m[1]!;
   const postId = m[2]!;
 
+  const mapped = records.get(postId);
+  if (mapped) return { ...mapped.item, scrapedAt: Date.now() };
+
   const textEls = article.querySelectorAll<HTMLElement>(SEL.text);
   const text = textEls[0]?.innerText.trim() ?? "";
   const quotedText = textEls[1]?.innerText.trim();
+  if (article.querySelector(SEL.showMore)) debug("text truncated in DOM (long post), no GraphQL record for", postId);
 
   const displayName = article.querySelector<HTMLElement>(`${SEL.userName} span`)?.innerText.trim();
   const verified = !!article.querySelector(`${SEL.userName} [data-testid="icon-verified"]`);
