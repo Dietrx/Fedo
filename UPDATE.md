@@ -10,6 +10,27 @@
 
 ---
 
+## 2026-09-21 · `ai/vision` · AI (+3 optionale Config-Felder) · Bilder werden gesehen: Text im Bild, Video-Standbild, Anzeichen für KI-Bilder
+
+**Was hat sich geändert:**
+- Bisher war alles im Bild unsichtbar (Jev liest nur Text). Jetzt geht `media[].url` bzw. bei Videos `posterUrl` an ein multimodales Modell
+  (Gemini 2.5 Flash über OpenRouter, derselbe Endpoint wie Speech-to-Text). Scraper und Glue mussten dafür NICHT geändert werden.
+  - **Text im Bild** (Memes, eingeblendete Schlagzeilen, Screenshots) läuft durch die normale Bewertung inkl. Zitaten. Ein Meme ganz ohne Post-Text wird jetzt bewertet.
+  - **`synthetic_media`** wird endlich geliefert: „sichtbare Anzeichen für KI-Generierung/Bearbeitung", bewusst vorsichtig (max. 90 %, `evidence` = das sichtbare Merkmal).
+    Test: bekanntes Midjourney-Bild 80 %, echtes Pressefoto 10 %.
+  - Ergebnis hat dann `source: "combined"`, bei reinen Bild-Posts `coverage: "full"`. Erklärung hat einen eigenen Satz fürs Bild („indication, not proof").
+- Läuft parallel zur Textanalyse; ein Post wartet höchstens 6 s aufs Bild, sonst kommt das Text-Ergebnis. Nur im Cloud-Modus, nie in „local".
+- **Außerhalb von `ai/` (klein, optional):** `AnalyzerConfig.visionApiUrl/Key/Model` in `contracts/modules.ts`, Durchreichen in `scripts/build.mjs`, Vorlage in `.env.example`.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, ↻. Keine neue `.env`-Zeile nötig, wenn `STT_API_URL` schon auf `…/chat/completions` zeigt.
+- **UI-Dev:** `synthetic_media` kann jetzt ≥ 50 % sein; `evidence` ist dort kein Zitat aus dem Post, sondern das sichtbare Merkmal im Bild → ggf. ohne Anführungszeichen zeigen.
+  Das „text only"-Tag verschwindet bei Bild-Posts, sobald das Bild gesehen wurde (`coverage: "full"`).
+
+**Wichtig zu wissen:** Bei Videos wird nur EIN Standbild (Poster) angesehen, nicht das laufende Bild. Keine Deepfake-Forensik. Im Cloud-Modus gehen Bild-URLs an OpenRouter/Google.
+
+---
+
 ## 2026-09-21 · `ai/transcript-sources` · AI · Robust gegen zwei Transkript-Quellen gleichzeitig (Untertitel + STT)
 
 **Was hat sich geändert** (nur `ai/`, baut auf `integrate/video-stt` #16 auf):

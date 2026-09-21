@@ -6,14 +6,14 @@
  * Applied to every analyzer in index.ts, so local, Jev and LLM results all carry it.
  */
 import type { AnalysisInput, AnalysisResult, Analyzer } from "@contracts";
-import { captionsOf } from "./state";
+import { captionsOf, type SeenItem } from "./state";
 
 export const MIN_WORDS = 4;
 
 /** Real words only: links, #hashtags and @mentions tell the analyzer nothing about wording. */
 export function wordCount(input: AnalysisInput): number {
   const spoken = input.kind === "transcript" ? input.transcript.map((c) => c.text).join(" ") : "";
-  const text = [input.item.text, captionsOf(input), spoken, input.item.quotedText].filter(Boolean).join(" ");
+  const text = [input.item.text, (input.item as SeenItem).imageText, captionsOf(input), spoken, input.item.quotedText].filter(Boolean).join(" ");
   return text
     .replace(/https?:\/\/\S+|[#@][\p{L}\p{N}_.]+/gu, "")
     .split(/\s+/)

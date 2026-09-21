@@ -22,7 +22,7 @@ import { scoreSignals } from "./engine";
 import { buildExplanation } from "./explain";
 import { analyzeLocally, isPartial } from "./mock";
 import { JEV_KEYS, JEV_QUESTIONS, TONE_QUESTIONS, type NoulQuestion, type ToneKey } from "./questions";
-import { buildStateObject } from "./state";
+import { buildStateObject, type SeenItem } from "./state";
 import { applyTone, capForHumor, toneFrom, toneNote } from "./tone";
 
 const DEFAULT_MODEL = "typesafe/jev-1.13";
@@ -57,7 +57,7 @@ export function createJevAnalyzer(apiUrl: string, apiKey: string): Analyzer {
       // Posts: split the text. Videos: every finished transcript chunk IS a sentence; its scores are cached,
       // so each update only pays for the sentences that are new.
       const spoken = input.kind === "transcript" ? input.transcript.filter((c) => c.isFinal && isSentence(c.text)) : [];
-      const sentences = input.kind === "post" ? splitSentences(input.item.text) : spoken.map((c) => c.text);
+      const sentences = input.kind === "post" ? splitSentences([input.item.text, (input.item as SeenItem).imageText].filter(Boolean).join("\n")) : spoken.map((c) => c.text);
       const memo = input.kind === "transcript" ? memoFor(input.item.id) : undefined;
       const perSentence = Promise.allSettled(sentences.map((text) => scoreSentence(text, memo)));
       try {

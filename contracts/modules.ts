@@ -38,6 +38,13 @@ export interface AnalyzerConfig {
   sttApiUrl?: string;
   sttApiKey?: string;
   sttModel?: string;
+  /**
+   * Image understanding (text in images, video posters, signs of AI generation): an OpenAI-compatible
+   * `/chat/completions` URL of a multimodal model. Optional — when unset, ai/ reuses the STT chat model.
+   */
+  visionApiUrl?: string;
+  visionApiKey?: string;
+  visionModel?: string;
 }
 
 export interface Transcriber {

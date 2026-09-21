@@ -9,11 +9,15 @@ import { createMockAnalyzer } from "./mock";
 import { createJevAnalyzer } from "./jev";
 import { withLiveVideo } from "./live";
 import { createLlmAnalyzer, isChatCompletionsUrl } from "./llm";
+import { createVision } from "./vision";
+import { withVision } from "./with-vision";
 export { createTranscriber } from "./stt";
 
 /** Every analyzer gets the live-video wrapper (throttling + coalescing of transcript updates, timeline) and `coverage`. */
 export function createAnalyzer(config: AnalyzerConfig): Analyzer {
-  return withCoverage(withLiveVideo(createBaseAnalyzer(config)));
+  // Vision only for API modes: the offline engine ("mock") must never touch the network.
+  const vision = config.mode === "mock" ? undefined : createVision(config);
+  return withCoverage(withLiveVideo(withVision(createBaseAnalyzer(config), vision)));
 }
 
 function createBaseAnalyzer(config: AnalyzerConfig): Analyzer {

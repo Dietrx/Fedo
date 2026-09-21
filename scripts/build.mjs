@@ -19,13 +19,16 @@ const config = {
   sttApiUrl: env.STT_API_URL || undefined,
   sttApiKey: env.STT_API_KEY || undefined,
   sttModel: env.STT_MODEL || undefined,
+  visionApiUrl: env.VISION_API_URL || undefined,
+  visionApiKey: env.VISION_API_KEY || undefined,
+  visionModel: env.VISION_MODEL || undefined,
 };
 
 rmSync("dist", { recursive: true, force: true });
 mkdirSync("dist", { recursive: true });
 // Host permissions: only the analyzer API origin (if any) — never every site.
 const manifest = JSON.parse(readFileSync("extension/manifest.json", "utf8"));
-manifest.host_permissions = [...new Set([config.jevApiUrl, config.sttApiUrl].filter(Boolean).map((u) => new URL(u).origin + "/*"))];
+manifest.host_permissions = [...new Set([config.jevApiUrl, config.sttApiUrl, config.visionApiUrl].filter(Boolean).map((u) => new URL(u).origin + "/*"))];
 writeFileSync("dist/manifest.json", JSON.stringify(manifest, null, 2));
 cpSync("ui/popup/popup.html", "dist/popup.html");
 cpSync("ui/dashboard/dashboard.html", "dist/dashboard.html");
