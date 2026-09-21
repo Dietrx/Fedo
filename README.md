@@ -1,5 +1,7 @@
 # 🛡️ Fedo Shield
 
+> **Neu im Projekt?** Sag deinem Claude: *„Lies START_HERE.md, ich bin der <Scraper|AI|UI>-Dev.“*
+
 Chrome-Extension, die live im X- und TikTok-Feed Überzeugungs- und Manipulationstechniken markiert
 (Fear Framing, Us vs. Them, unbelegte Behauptungen, AI Slop, …). Sie bewertet **Techniken**, nicht Meinungen.
 

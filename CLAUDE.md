@@ -1,7 +1,7 @@
 # Fedo Shield: Hinweise für Claude
 
 Chrome-Extension (MV3, TypeScript, esbuild), die im X/TikTok-Feed Überzeugungstechniken markiert.
-Drei Devs arbeiten parallel. **Frag zu Beginn, welcher Dev du bist, falls es nicht gesagt wurde.**
+Drei Devs arbeiten parallel. **Die vollständige Anleitung steht in `START_HERE.md`.**
 
 | Rolle | Ordner | Liefert (siehe contracts/modules.ts) | Testen |
 |---|---|---|---|
