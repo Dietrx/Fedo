@@ -8,13 +8,17 @@ import { createOverlay } from "../index";
 import type { ThemeId } from "../theme";
 
 const feed = document.getElementById("feed")!;
+// extra playground-only case: a paid AI-slop ad (not in contracts/fixtures.ts, so nothing outside ui/ changes)
+const SLOP_ITEM = { id: "x:9001", platform: "x" as const, author: { handle: "promo_bot_9000", displayName: "Promo", verified: true }, text: "🚀 Unlock 10x productivity with our revolutionary AI-powered solution! Limited time offer — transform your workflow today! #ad", hashtags: ["ad"], media: [], scrapedAt: 0 };
+const SLOP_RESULT: AnalysisResult = { itemId: "x:9001", source: "mock", latencyMs: 90, overall: { level: "medium", score: 0.6 }, explanation: "Generic promotional text with typical patterns of generated content.",
+  signals: [{ key: "possible_ai_slop", score: 0.94, evidence: "Unlock 10x productivity" }, { key: "commercial_persuasion", score: 0.9 }, { key: "urgency_language", score: 0.7, evidence: "Limited time offer" }] };
 const themeSel = document.getElementById("theme") as HTMLSelectElement;
 const minSel = document.getElementById("min") as HTMLInputElement;
 const anchors = new Map<string, HTMLElement>();
 const last = new Map<string, AnalysisResult>();
 let overlay: OverlayRenderer;
 
-for (const item of FIXTURE_ITEMS) {
+for (const item of [...FIXTURE_ITEMS, SLOP_ITEM]) {
   const el = document.createElement("article");
   const img = item.media.find((m) => m.type === "image");
   el.innerHTML = `
@@ -39,7 +43,7 @@ function replay() {
   last.clear();
   build();
   for (const [id, anchor] of anchors) {
-    const result = FIXTURE_RESULTS.find((r) => r.itemId === id);
+    const result = id === SLOP_RESULT.itemId ? SLOP_RESULT : FIXTURE_RESULTS.find((r) => r.itemId === id);
     setTimeout(() => {
       if (result) last.set(id, result);
       overlay.render(id, anchor, result ? { status: "done", result } : { status: "error", message: "no fixture" });

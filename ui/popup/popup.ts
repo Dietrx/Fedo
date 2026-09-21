@@ -13,6 +13,7 @@ const systemDark = () => matchMedia("(prefers-color-scheme: dark)").matches;
 function applyTheme(p: UiPrefs) {
   document.documentElement.dataset.theme = resolveTheme(p.theme, p.colorBlind, systemDark());
   $<HTMLInputElement>("colorBlind").checked = p.colorBlind;
+  $<HTMLInputElement>("slopCover").checked = p.slopCover;
   document.querySelectorAll<HTMLInputElement>('input[name="theme"]').forEach((r) => (r.checked = r.value === p.theme));
 }
 
@@ -49,6 +50,7 @@ minScore.addEventListener("change", () => send({ type: "fedo/setSettings", setti
 document.querySelectorAll<HTMLInputElement>('input[name="theme"]').forEach((r) =>
   r.addEventListener("change", async () => applyTheme(await savePrefs({ theme: r.value as UiPrefs["theme"] }))));
 $("colorBlind").addEventListener("change", async (e) => applyTheme(await savePrefs({ colorBlind: (e.target as HTMLInputElement).checked })));
+$("slopCover").addEventListener("change", async (e) => applyTheme(await savePrefs({ slopCover: (e.target as HTMLInputElement).checked })));
 $("reset").addEventListener("click", () => resetStats());
 $("open").addEventListener("click", () => chrome.tabs.create({ url: "https://x.com/home" }));
 onStorageChange((c) => { if (c.stats) renderStats(c.stats); });

@@ -32,6 +32,9 @@ interface Entry {
   log: { t: number; key: Signal["key"]; evidence?: string }[];
   peak: Map<string, number>;
   counted: boolean;
+  /** full-post cover for AI slop, and whether the reader dismissed it */
+  cover?: HTMLElement;
+  slopDismissed: boolean;
 }
 
 export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
@@ -67,7 +70,7 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
     const root = host.attachShadow({ mode: "open" });
     root.innerHTML = `<style>${OVERLAY_CSS}</style><div class="prog"><i></i></div><div class="view"></div>`;
     anchor.appendChild(host);
-    e = { host, root, anchor, state: { status: "pending" }, expanded: false, widths: new Map(), log: [], peak: new Map(), counted: false };
+    e = { host, root, anchor, state: { status: "pending" }, expanded: false, widths: new Map(), log: [], peak: new Map(), counted: false, slopDismissed: false };
     entries.set(itemId, e);
     return e;
   }
@@ -86,16 +89,47 @@ export function createOverlay(opts: OverlayOptions = {}): OverlayRenderer {
       const toggle = () => { e.expanded = !e.expanded; api.render(itemId, anchor, e.state); };
       view.querySelectorAll("[data-toggle]").forEach((el) => el.addEventListener("click", (ev) => { ev.stopPropagation(); toggle(); }));
       animateMeters(e);
+      renderCover(e, state, prefs.slopCover, theme(), () => { e.slopDismissed = true; api.render(itemId, anchor, e.state); });
       if (state.status === "done" && !state.result.partial && !e.counted && countStats) {
         e.counted = true;
         const shown = visible(state.result, minScore);
         bumpStats(shown.length > 0, shown[0] ? groupOf(shown[0].key) : undefined).catch(() => {});
       }
     },
-    remove(itemId) { entries.get(itemId)?.host.remove(); entries.delete(itemId); },
-    clear() { entries.forEach((e) => e.host.remove()); entries.clear(); },
+    remove(itemId) { const e = entries.get(itemId); e?.host.remove(); e?.cover?.remove(); entries.delete(itemId); },
+    clear() { entries.forEach((e) => { e.host.remove(); e.cover?.remove(); }); entries.clear(); },
   };
   return api;
+}
+
+// ── AI slop cover ──────────────────────────────────────────────────────────────────────
+const SLOP_KEYS = ["possible_ai_slop", "synthetic_media"] as const;
+const SLOP_MIN = 0.85;
+export const isSlop = (r: AnalysisResult) => r.signals.some((s) => (SLOP_KEYS as readonly string[]).includes(s.key) && s.score >= SLOP_MIN);
+
+/** Lays a full-width cover over the whole post when it reads as mass-produced AI content. The reader can dismiss it. */
+function renderCover(e: Entry, state: OverlayState, enabled: boolean, theme: ThemeId, onDismiss: () => void) {
+  const show = enabled && !e.slopDismissed && state.status === "done" && !state.result.partial && isSlop(state.result);
+  if (!show) { e.cover?.remove(); e.cover = undefined; return; }
+  if (!e.cover || !e.cover.isConnected) {
+    if (getComputedStyle(e.anchor).position === "static") e.anchor.style.position = "relative";
+    const cover = document.createElement("fedo-cover");
+    for (const ev of ["click", "mousedown", "pointerdown", "touchstart", "wheel"]) cover.addEventListener(ev, (x) => x.stopPropagation());
+    const root = cover.attachShadow({ mode: "open" });
+    root.innerHTML = `<style>${OVERLAY_CSS}</style><div class="cover"></div>`;
+    e.anchor.appendChild(cover);
+    e.cover = cover;
+  }
+  e.cover.dataset.theme = theme;
+  const r = (state as { result: AnalysisResult }).result;
+  const top = r.signals.filter((s) => (SLOP_KEYS as readonly string[]).includes(s.key)).sort((a, b) => b.score - a.score)[0]!;
+  const box = e.cover.shadowRoot!.querySelector(".cover")!;
+  box.innerHTML = `
+    <button class="x" aria-label="Show post">×</button>
+    <div class="tag">AI slop</div>
+    <div class="why">${esc(SIGNALS[top.key].label)} <b>${pct(top.score)}</b>${top.evidence ? ` · <q>${esc(top.evidence)}</q>` : ""}</div>
+    <button class="btn secondary show">Show post anyway</button>`;
+  box.querySelectorAll("button").forEach((b) => b.addEventListener("click", (ev) => { ev.stopPropagation(); onDismiss(); }));
 }
 
 // ── live tracker bookkeeping ───────────────────────────────────────────────────────────

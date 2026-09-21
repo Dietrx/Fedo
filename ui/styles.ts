@@ -104,5 +104,17 @@ export const OVERLAY_CSS = /* css */ `
   .log .t { min-width: 40px; }
   .log .k { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
   .log q { color: var(--ink-muted); font-style: italic; quotes: "“" "”"; }
+  /* AI slop cover: over the whole post, until the reader dismisses it */
+  .cover { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2);
+           padding: var(--space-4); background: var(--ground); border-radius: var(--radius-lg); border: 1px solid var(--hairline); text-align: center; animation: fade .16s ease-out; }
+  .cover .tag { font: 700 22px/26px var(--font-display); letter-spacing: -.02em; color: var(--ink); }
+  .cover .tag::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--cat-synthetic); margin-right: 8px; vertical-align: 2px; }
+  .cover .why { font: 500 12px/16px var(--font-sans); color: var(--ink-muted); max-width: 420px; white-space: normal; }
+  .cover .why b { font: 600 11px/16px var(--font-mono); color: var(--ink); }
+  .cover .why q { font-style: italic; quotes: "“" "”"; }
+  .cover .x { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--ink-muted); font: 400 22px/32px var(--font-sans); cursor: pointer; }
+  .cover .x:hover { background: var(--surface-sunken); color: var(--ink); }
+  .cover .show { margin-top: var(--space-2); }
+  .btn.secondary { background: var(--surface); color: var(--ink); border: 1px solid var(--ink); height: 36px; padding: 0 16px; }
   ${groupCss}
 `;

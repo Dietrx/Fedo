@@ -6,10 +6,10 @@
 import type { Group } from "./theme";
 import type { ThemePref } from "./theme";
 
-export interface UiPrefs { theme: ThemePref; colorBlind: boolean }
+export interface UiPrefs { theme: ThemePref; colorBlind: boolean; /** cover posts that look like mass-produced AI content */ slopCover: boolean }
 export interface Stats { analyzed: number; withSignals: number; byGroup: Record<Group, number> }
 
-export const DEFAULT_PREFS: UiPrefs = { theme: "system", colorBlind: false };
+export const DEFAULT_PREFS: UiPrefs = { theme: "system", colorBlind: false, slopCover: true };
 export const EMPTY_STATS: Stats = { analyzed: 0, withSignals: 0, byGroup: { political: 0, rhetoric: 0, credibility: 0, synthetic: 0 } };
 
 const PREFS_KEY = "fedo.ui.prefs";
