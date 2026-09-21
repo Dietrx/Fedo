@@ -1,7 +1,7 @@
-// x.com/home (EINGELOGGT) → DevTools-Konsole, dann scrollen. Fängt GraphQL-Antworten (fetch UND XHR) ab.
-// Ziel: 1) bestätigen, welche Operation die Timeline liefert (HomeTimeline / HomeLatestTimeline),
-//       2) eine echte Antwort als Fixture sichern: `copy(JSON.stringify(fedoGraphql[0].json))` → in
-//          scraper/test/fixtures/x-graphql-timeline.json einsetzen (vorher persönliche Daten prüfen).
+// x.com/home (LOGGED IN) → DevTools console, then scroll. Captures GraphQL responses (fetch AND XHR).
+// Goal: 1) confirm which operation delivers the timeline (HomeTimeline / HomeLatestTimeline),
+//       2) save a real response as a fixture: `copy(JSON.stringify(fedoGraphql[0].json))` → put it into
+//          scraper/test/fixtures/x-graphql-timeline.json (check for personal data first).
 (() => {
   const captured = [];
   window.fedoGraphql = captured;
@@ -21,7 +21,7 @@
       console.log(`GraphQL ${op} via ${via}: ${tweets.length} tweets, ${Math.round(text.length / 1024)} KB`);
       if (tweets[0]) {
         const t = tweets[0];
-        console.log("Beispiel:", { id: t.rest_id, user: t.core?.user_results?.result?.legacy?.screen_name ?? t.core?.user_results?.result?.core?.screen_name, note: !!t.note_tweet, quoted: !!t.quoted_status_result, media: t.legacy.extended_entities?.media?.map((m) => m.type), views: t.views?.count, lang: t.legacy.lang, birdwatch: !!t.birdwatch_pivot });
+        console.log("Example:", { id: t.rest_id, user: t.core?.user_results?.result?.legacy?.screen_name ?? t.core?.user_results?.result?.core?.screen_name, note: !!t.note_tweet, quoted: !!t.quoted_status_result, media: t.legacy.extended_entities?.media?.map((m) => m.type), views: t.views?.count, lang: t.legacy.lang, birdwatch: !!t.birdwatch_pivot });
       }
     } catch {}
   };
@@ -37,5 +37,5 @@
     if (/\/i\/api\/graphql\//.test(String(url))) this.addEventListener("load", () => record(String(url), this.responseText, "xhr"));
     return origOpen.apply(this, arguments);
   };
-  console.log("fedo: GraphQL-Wrapper installiert — jetzt scrollen; Ergebnisse in window.fedoGraphql");
+  console.log("fedo: GraphQL wrapper installed — scroll now; results in window.fedoGraphql");
 })();

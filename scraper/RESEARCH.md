@@ -1,365 +1,365 @@
-# Scraper-Strang: Recherche, Messungen, Architektur, Prototyp
+# Scraper workstream: research, measurements, architecture, prototype
 
-Stand **2026-09-21**. Alles in dieser Datei wurde in einer Sitzung mit Playwright auf den echten Seiten
-gemessen oder gebaut; wo etwas geschätzt, übernommen oder nicht prüfbar war, steht es dabei. Die Datei ist
-das Gedächtnis des Scraper-Strangs: wer nach mir weitermacht, soll hier den Gedankengang finden, nicht nur
-das Ergebnis. `DOKUMENTATION.md` im Projektstamm war der erste Test davor; diese Datei ersetzt seine
-Annahmen durch Messungen.
-
----
-
-## 0. Wie diese Datei zu lesen ist
-
-- **Kurz:** Abschnitt 1 (eine Seite).
-- **Als Scraper-Dev:** Abschnitte 4–5 (Datenwege), 7 (Architektur), 9 (Coverage-Tabelle), 13 (Code), 15 (Verifikation).
-- **Als AI-Dev:** Abschnitt 9 (welche Felder wie zuverlässig kommen), 10 (Transcript-Kanal, Doppelungsfrage), 9.2 (Zusatzfelder).
-- **Als Mensch, der nichts liest außer Ergebnissen:** Abschnitt 15 sagt, was man tippt und was man sehen muss.
-
-Begriffe: *Isolated world* = die JavaScript-Welt, in der ein Chrome-Content-Script läuft (sieht das DOM, nicht die
-Variablen der Seite). *MAIN world* = die Welt der Seite selbst. *Bridge* = unser Nachrichtenkanal zwischen beiden
-(`scraper/bridge.ts`). *Item* = TikToks JSON-Objekt für ein Video. *Tweet-Entity* = X' JSON-Objekt für einen Post.
+As of **2026-09-21**. Everything in this file was measured or built in one session with Playwright on the real
+sites; where something was estimated, adopted from elsewhere or could not be checked, it says so. This file is
+the memory of the scraper workstream: whoever continues after me should find the line of thought here, not just
+the result. `DOKUMENTATION.md` in the project root was the first test before this; this file replaces its
+assumptions with measurements.
 
 ---
 
-## 1. Kurzfassung
+## 0. How to read this file
 
-1. **TikTok liefert alle Metadaten Sekunden vor dem Video.** Die Seite lädt per `fetch` acht Items auf einmal
-   (`/api/recommend/item_list/`, 165–223 KB), jedes mit ID, voller Beschreibung, strukturierten Hashtags und
-   Mentions, Autor (Handle, Anzeigename, verifiziert), Zählern (Likes, Kommentare, Shares, Views, Saves), Musik,
-   Erstellzeit, Sprache, Werbekennzeichen, KI-Label, Text-Stickern und, wenn vorhanden, einer
-   **WebVTT-Untertitel-URL**. Das DOM des For-You-Feeds enthält dagegen **keine Video-ID** und keinen
-   `video-author-uniqueid`; die alten Selektoren in `tiktok.ts` griffen ins Leere.
-2. **Deshalb braucht der Scraper ein MAIN-world-Skript.** Ein Content-Script sieht weder die Netzwerkantworten
-   noch den React-State (gemessen: in einer isolated world sind `__reactFiber$*`-Schlüssel 0, `fetch` ist nativ).
-   Das ist eine Änderung an `extension/manifest.json` (ein zweiter `content_scripts`-Eintrag mit
-   `"world": "MAIN"`) und an `scripts/build.mjs` (ein Bundle-Eintrag). Beides ist gemacht und unten ausgewiesen.
-3. **Mit dem MAIN-world-Skript kommt `onItem` vor dem Video:** im Integrationslauf lag `onItem` beim ersten
-   Video im selben Frame wie das `play`-Ereignis (0–1 ms) und bei allen weiteren **1,0–3,6 s davor** (der
-   Artikel wird gefüllt, bevor der Nutzer ihn erreicht). Alle 12 Items des dritten Laufs hatten echte IDs,
-   `createdAt` und Anzeigename; 3 trugen den vollen Untertiteltext schon im `FeedItem.captions`.
-4. **Untertitel gibt es, aber selten:** 5 von 33 Feed-Videos hatten eine Spur (`video.claInfo.captionInfos`,
-   alle automatisch erzeugt, Originalsprache). Die VTT-Datei ist aus dem Seitenkontext abrufbar (200, CORS
-   erlaubt, 5–300 ms). Wo sie fehlt, braucht es Speech-to-Text.
-5. **Lokales STT ist schnell genug:** whisper.cpp `large-v3-turbo` mit Metal auf dem M4 verarbeitet 10 s Audio
-   in 0,8–1,3 s; das MP4 ist aus dem Seitenkontext ladbar (392 KB in 172 ms, 2,9 MB in 324 ms), der Browser
-   dekodiert es selbst (52 ms) und schickt WAV-Fenster an `whisper-server` (CORS `*`). Im Integrationslauf kam der
-   **erste STT-Chunk 840–1.413 ms nach `play`**. Kein Chunk erreichte den Sink für ein verlassenes Video.
-6. **Kommentare kosten einen Aufruf ohne Signatur:** `/api/comment/list/?aid=1988&aweme_id=<id>&count=20&cursor=0`
-   aus dem Seitenkontext → 200, 15–18 Kommentare (nach Popularität sortiert, Likes, Antwortzahl, Sprache),
-   ~380–430 ms. Replies genauso. **Nicht** in den Prototyp eingebaut (kein `FeedItem`-Feld, Abschnitt 9.2).
-7. **X konnte nur teilweise beobachtet werden.** Das Testprofil ist ausgeloggt; `x.com/home` und Permalinks
-   liefern eine statische Seite ohne `data-testid` und ohne GraphQL-Aufrufe. Gebaut und getestet ist der
-   Mapper für die GraphQL-Tweet-Entität (Form aus öffentlichen Typdefinitionen, **Fixture synthetisch**) und ein
-   Mapper für die öffentliche Syndication-API (live geprüft). Der DOM-Pfad bleibt der des Gerüsts
-   (vom Gerüst verifiziert, hier nicht re-verifiziert). Eine DevTools-Sonde für den eingeloggten Feed liegt bei.
-8. **Bestehende Schnittstelle unverändert.** `contracts/` ist nicht angefasst. `onTranscript` wird jetzt real
-   bedient (Captions gepaced, STT progressiv), `onItemRemoved` ebenfalls (TikTok recycelt Artikel).
-9. **Beweis:** `npm run check` grün, `npm run test:scraper` 15/15 grün, drei Playwright-Integrationsläufe auf
-   tiktok.com (Abschnitt 14).
+- **Short:** section 1 (one page).
+- **As the scraper dev:** sections 4–5 (data paths), 7 (architecture), 9 (coverage table), 13 (code), 15 (verification).
+- **As the AI dev:** section 9 (which fields arrive how reliably), 10 (transcript channel, duplication question), 9.2 (additional fields).
+- **As a human who reads nothing but results:** section 15 says what to type and what you must see.
+
+Terms: *Isolated world* = the JavaScript world in which a Chrome content script runs (sees the DOM, not the
+page's variables). *MAIN world* = the world of the page itself. *Bridge* = our message channel between the two
+(`scraper/bridge.ts`). *Item* = TikTok's JSON object for a video. *Tweet entity* = X's JSON object for a post.
 
 ---
 
-## 2. Ausgangslage und was daraus wurde
+## 1. Summary
 
-| Vorher (Gerüst + DOKUMENTATION.md) | Nachher |
+1. **TikTok delivers all metadata seconds before the video.** The page loads eight items at once via `fetch`
+   (`/api/recommend/item_list/`, 165–223 KB), each with ID, full description, structured hashtags and
+   mentions, author (handle, display name, verified), counters (likes, comments, shares, views, saves), music,
+   creation time, language, ad flag, AI label, text stickers and, where present, a
+   **WebVTT subtitle URL**. The DOM of the For You feed, by contrast, contains **no video ID** and no
+   `video-author-uniqueid`; the old selectors in `tiktok.ts` matched nothing.
+2. **That is why the scraper needs a MAIN-world script.** A content script sees neither the network responses
+   nor the React state (measured: in an isolated world there are 0 `__reactFiber$*` keys, `fetch` is native).
+   This is a change to `extension/manifest.json` (a second `content_scripts` entry with
+   `"world": "MAIN"`) and to `scripts/build.mjs` (one bundle entry). Both are done and listed below.
+3. **With the MAIN-world script, `onItem` arrives before the video:** in the integration run, `onItem` for the first
+   video was in the same frame as the `play` event (0–1 ms) and for all further ones **1.0–3.6 s before it** (the
+   article is filled before the user reaches it). All 12 items of the third run had real IDs,
+   `createdAt` and display name; 3 already carried the full subtitle text in `FeedItem.captions`.
+4. **Subtitles exist, but rarely:** 5 of 33 feed videos had a track (`video.claInfo.captionInfos`,
+   all auto-generated, original language). The VTT file can be fetched from the page context (200, CORS
+   allowed, 5–300 ms). Where it is missing, speech-to-text is needed.
+5. **Local STT is fast enough:** whisper.cpp `large-v3-turbo` with Metal on the M4 processes 10 s of audio
+   in 0.8–1.3 s; the MP4 can be loaded from the page context (392 KB in 172 ms, 2.9 MB in 324 ms), the browser
+   decodes it itself (52 ms) and sends WAV windows to `whisper-server` (CORS `*`). In the integration run the
+   **first STT chunk arrived 840–1,413 ms after `play`**. No chunk reached the sink for a video that had been left.
+6. **Comments cost one call without a signature:** `/api/comment/list/?aid=1988&aweme_id=<id>&count=20&cursor=0`
+   from the page context → 200, 15–18 comments (sorted by popularity, likes, reply count, language),
+   ~380–430 ms. Replies likewise. **Not** built into the prototype (no `FeedItem` field, section 9.2).
+7. **X could only be observed partially.** The test profile is logged out; `x.com/home` and permalinks
+   return a static page without `data-testid` and without GraphQL calls. What is built and tested is the
+   mapper for the GraphQL tweet entity (shape from public type definitions, **fixture synthetic**) and a
+   mapper for the public syndication API (checked live). The DOM path remains that of the scaffold
+   (verified by the scaffold, not re-verified here). A DevTools probe for the logged-in feed is included.
+8. **Existing interface unchanged.** `contracts/` has not been touched. `onTranscript` is now really
+   served (captions paced, STT progressive), `onItemRemoved` likewise (TikTok recycles articles).
+9. **Proof:** `npm run check` green, `npm run test:scraper` 15/15 green, three Playwright integration runs on
+   tiktok.com (section 14).
+
+---
+
+## 2. Starting point and what became of it
+
+| Before (scaffold + DOKUMENTATION.md) | After |
 |---|---|
-| TikTok: `data-e2e="video-author-uniqueid"` und `a[href*="/video/"]` — greifen im FYP nicht (gemessen: `handle` und `href` undefined) | Item-JSON per Bridge, ID per DOM-Attribut aus dem React-State; DOM-Fallback über `a[href^="/@"]` + Text |
-| Annahme „TikTok-Untertitel zuerst, sonst Deepgram" (Cloud, Tab-Audio, Offscreen-Dokument) | VTT-URL aus dem Item-JSON (kein Raten im DOM), STT lokal ohne Tab-Capture: MP4 laden, im Browser dekodieren |
-| `onTranscript` nur als Stub-Idee | Implementiert: Captions im Takt der Wiedergabe, STT in 10-s-Fenstern, ein Job, Abbruch beim Wechsel |
-| X per DOM, GraphQL als „optional" | GraphQL-Mapper + Syndication-Mapper getestet; DOM-Pfad bleibt Fallback; Live-Verifikation eingeloggt offen |
-| Keine Tests | 15 Tests gegen echte (bereinigte) und synthetische Payloads, `npm run test:scraper` |
+| TikTok: `data-e2e="video-author-uniqueid"` and `a[href*="/video/"]` — do not match in the FYP (measured: `handle` and `href` undefined) | Item JSON via the bridge, ID via DOM attribute from the React state; DOM fallback via `a[href^="/@"]` + text |
+| Assumption "TikTok subtitles first, otherwise Deepgram" (cloud, tab audio, offscreen document) | VTT URL from the item JSON (no guessing in the DOM), STT locally without tab capture: load the MP4, decode it in the browser |
+| `onTranscript` only as a stub idea | Implemented: captions in step with playback, STT in 10-s windows, one job, abort on switch |
+| X via DOM, GraphQL as "optional" | GraphQL mapper + syndication mapper tested; DOM path remains the fallback; live verification while logged in is open |
+| No tests | 15 tests against real (sanitised) and synthetic payloads, `npm run test:scraper` |
 
 ---
 
-## 3. Methode und Grenzen
+## 3. Method and limits
 
-- Werkzeug: Playwright-MCP (Chromium 153), **ausgeloggt**, `tiktok.com/foryou`, `x.com`; Apple M4, 16 GB.
-- Zeiten in der Seite mit `performance.now()`, außerhalb mit `Date.now()` (gleiche Uhr, gleicher Rechner).
-- Für jede tragende Zahl gibt es zwei verschieden gebaute Herleitungen (Abschnitt 17).
-- **Nicht beobachtbar:** der eingeloggte X-Feed (DOM und GraphQL), TikTok eingeloggt (mehr Untertitel? unbekannt),
-  Video-CORS von `video.twimg.com`, Verhalten über Stunden (Rate-Limits, Session-Ablauf).
-- Der Integrationslauf simuliert die Extension: `main-world.js` in der Seitenwelt, der Scraper in einer
-  isolated world (CDP). Ein Unterschied bleibt: eine CDP-isolated-world unterliegt der Seiten-CSP, ein echtes
-  Content-Script nicht — darum lief der Test mit `bypassCSP` (Abschnitt 12, CSP/LNA).
+- Tooling: Playwright MCP (Chromium 153), **logged out**, `tiktok.com/foryou`, `x.com`; Apple M4, 16 GB.
+- Times inside the page with `performance.now()`, outside with `Date.now()` (same clock, same machine).
+- For every load-bearing number there are two differently built derivations (section 17).
+- **Not observable:** the logged-in X feed (DOM and GraphQL), TikTok logged in (more subtitles? unknown),
+  video CORS of `video.twimg.com`, behaviour over hours (rate limits, session expiry).
+- The integration run simulates the extension: `main-world.js` in the page world, the scraper in an
+  isolated world (CDP). One difference remains: a CDP isolated world is subject to the page CSP, a real
+  content script is not — that is why the test ran with `bypassCSP` (section 12, CSP/LNA).
 
 ---
 
-## 4. TikTok: Datenwege je Information
+## 4. TikTok: data paths per piece of information
 
-### 4.1 Überblick
+### 4.1 Overview
 
-| Information | Weg 1 (empfohlen) | Weg 2 | Weg 3 | Beobachtete Latenz | Stabilität |
+| Information | Path 1 (recommended) | Path 2 | Path 3 | Observed latency | Stability |
 |---|---|---|---|---|---|
-| Video-ID | Item-JSON (`id`), per Bridge; ID landet als `data-fedo-tiktok-id` am Artikel | React-State (Fiber, Tiefe 2, Hook 10, `ref.current.value`) | — im DOM **nicht vorhanden**; Fallback: Hash aus Handle+Text | vor dem Video | hoch (API-Form seit Jahren), mittel (Fiber) |
-| Beschreibung / Text | `contents[].desc` (voll) bzw. `desc` | DOM `[data-e2e="video-desc"]` (innerText, Spans → Zeilenumbrüche normalisieren) | — | vor dem Video / 0,3 ms | hoch / hoch |
-| Hashtags | `textExtra[].hashtagName` (strukturiert, exakt) | `challenges[].title` | Regex über Text | vor dem Video | hoch |
-| Mentions | `textExtra[].userUniqueId` | Regex `@…` | — | vor dem Video | hoch |
-| Handle | `author.uniqueId` (API) bzw. `author` (String, React-State) | DOM `a[href^="/@"]` | — | vor dem Video / 0,3 ms | hoch |
-| Anzeigename | `author.nickname` bzw. `nickname` | — (im FYP-DOM nicht sichtbar) | — | vor dem Video | hoch |
-| verifiziert | `author.verified` (nur API-Form) | — | — | vor dem Video | mittel (fehlt in der State-Form) |
-| Post-URL | `https://www.tiktok.com/@<handle>/video/<id>` aus ID+Handle | `a[href*="/video/"]` (nur Profil-/Detailseiten) | — | vor dem Video | hoch |
-| Erstellzeit | `createTime` (Epoch-Sekunden) | — | — | vor dem Video | hoch |
-| Likes / Kommentare / Shares / Views / Saves | `stats` (Zahlen) bzw. `statsV2` (Strings) | DOM `[data-e2e="like-count"]` etc. (formatiert „48.9K") | — | vor dem Video | hoch / mittel |
-| Sound | `music.title`, `music.authorName`, `music.original` | DOM `[data-e2e="video-music"]` (war leer) | — | vor dem Video | hoch |
-| Sprache | `textLanguage` (`en`, `de`, `un`…) | `claInfo.originalLanguageInfo.languageCode` | — | vor dem Video | hoch |
-| Untertitel | `video.claInfo.captionInfos[].url` (WebVTT) | `video.subtitleInfos[].Url` (Legacy, identische Fälle) | DOM `DivCaptionContainer` — **bleibt leer** (h=0), auch bei vorhandener Spur | 5–300 ms für die Datei | hoch, Abdeckung 5/33 |
-| Video-Datei | `video.playAddr` (MP4, h264 ~350 kbps) | `video.downloadAddr` | `<video>.currentSrc` ist `blob:` (MSE, **nicht** ladbar) | 172 ms/392 KB, 324 ms/2,9 MB | hoch (aus Seitenkontext; von außen 403) |
-| Kommentare | `/api/comment/list/` ohne Signatur | Kommentar-Panel (nur eingeloggt) | — | 380–430 ms je 15–18 | mittel (unsigniert könnte abgeschaltet werden) |
-| Werbung / KI-Label | `isAd`, `AIGCDescription`, `ShowAIGC` | DOM `[data-e2e="sponsored-tag"]` | — | vor dem Video | hoch |
-| Text-Sticker | `stickersOnItem[].stickerText[]` | — | — | vor dem Video | mittel (selten gefüllt: 3/33) |
-| Bild-Posts | `imagePost.images[].imageURL.urlList[0]`, `imagePost.title` | — | — | — | im FYP-Sample 0/33, Form bekannt |
+| Video ID | Item JSON (`id`), via the bridge; the ID ends up as `data-fedo-tiktok-id` on the article | React state (fiber, depth 2, hook 10, `ref.current.value`) | — **not present** in the DOM; fallback: hash of handle+text | before the video | high (API shape for years), medium (fiber) |
+| Description / text | `contents[].desc` (full) or `desc` | DOM `[data-e2e="video-desc"]` (innerText, spans → normalise line breaks) | — | before the video / 0.3 ms | high / high |
+| Hashtags | `textExtra[].hashtagName` (structured, exact) | `challenges[].title` | regex over the text | before the video | high |
+| Mentions | `textExtra[].userUniqueId` | regex `@…` | — | before the video | high |
+| Handle | `author.uniqueId` (API) or `author` (string, React state) | DOM `a[href^="/@"]` | — | before the video / 0.3 ms | high |
+| Display name | `author.nickname` or `nickname` | — (not visible in the FYP DOM) | — | before the video | high |
+| verified | `author.verified` (API shape only) | — | — | before the video | medium (missing in the state shape) |
+| Post URL | `https://www.tiktok.com/@<handle>/video/<id>` from ID+handle | `a[href*="/video/"]` (profile/detail pages only) | — | before the video | high |
+| Creation time | `createTime` (epoch seconds) | — | — | before the video | high |
+| Likes / comments / shares / views / saves | `stats` (numbers) or `statsV2` (strings) | DOM `[data-e2e="like-count"]` etc. (formatted "48.9K") | — | before the video | high / medium |
+| Sound | `music.title`, `music.authorName`, `music.original` | DOM `[data-e2e="video-music"]` (was empty) | — | before the video | high |
+| Language | `textLanguage` (`en`, `de`, `un`…) | `claInfo.originalLanguageInfo.languageCode` | — | before the video | high |
+| Subtitles | `video.claInfo.captionInfos[].url` (WebVTT) | `video.subtitleInfos[].Url` (legacy, identical cases) | DOM `DivCaptionContainer` — **stays empty** (h=0), even when a track exists | 5–300 ms for the file | high, coverage 5/33 |
+| Video file | `video.playAddr` (MP4, h264 ~350 kbps) | `video.downloadAddr` | `<video>.currentSrc` is `blob:` (MSE, **not** loadable) | 172 ms/392 KB, 324 ms/2.9 MB | high (from the page context; from outside 403) |
+| Comments | `/api/comment/list/` without signature | comment panel (logged in only) | — | 380–430 ms per 15–18 | medium (unsigned could be switched off) |
+| Ad / AI label | `isAd`, `AIGCDescription`, `ShowAIGC` | DOM `[data-e2e="sponsored-tag"]` | — | before the video | high |
+| Text stickers | `stickersOnItem[].stickerText[]` | — | — | before the video | medium (rarely filled: 3/33) |
+| Image posts | `imagePost.images[].imageURL.urlList[0]`, `imagePost.title` | — | — | — | 0/33 in the FYP sample, shape known |
 
-### 4.2 Das Item-JSON (Netzwerk)
+### 4.2 The item JSON (network)
 
-Gemessen auf `/foryou`: erste Antwort ~2,0 s nach Navigationsstart (2 Items, 68 KB), danach `/api/preload/item_list/`
-und weitere `/api/recommend/item_list/` mit 7–8 Items (165–223 KB) — **jeweils Sekunden bevor der Nutzer die
-Videos erreicht**. Abruf per `fetch` (nicht XHR). Die Anfrage-URL trägt Signaturen (`X-Bogus`, `msToken`,
-`X-Gnarly`) — selbst aufrufen geht nicht (`/api/item/detail/` ohne Signatur → 200 mit leerem Body), mithören geht.
+Measured on `/foryou`: first response ~2.0 s after navigation start (2 items, 68 KB), then `/api/preload/item_list/`
+and further `/api/recommend/item_list/` with 7–8 items (165–223 KB) — **each seconds before the user reaches the
+videos**. Retrieved via `fetch` (not XHR). The request URL carries signatures (`X-Bogus`, `msToken`,
+`X-Gnarly`) — calling it yourself does not work (`/api/item/detail/` without signature → 200 with empty body), listening in does.
 
-TikToks eigenes SDK umhüllt `window.fetch` und `XMLHttpRequest.prototype.open` bereits (beide nicht mehr nativ).
-Ein Wrapper, der **danach** installiert wird, sieht trotzdem alle weiteren `item_list`-Antworten (gemessen: nach
-einem nachträglichen Patch kamen 8 Items durch), weil die App `window.fetch` zur Laufzeit aufruft. Bei
-`document_start` sind wir ohnehin zuerst.
+TikTok's own SDK already wraps `window.fetch` and `XMLHttpRequest.prototype.open` (both no longer native).
+A wrapper that is installed **afterwards** still sees all further `item_list` responses (measured: after
+a late patch 8 items came through), because the app calls `window.fetch` at runtime. At
+`document_start` we are first anyway.
 
-Vollständige Feldliste eines Items (Auszug, Sample in `scraper/test/fixtures/tiktok-capture.json`):
+Complete field list of an item (excerpt, sample in `scraper/test/fixtures/tiktok-capture.json`):
 `id, desc, contents[], textExtra[], challenges[], createTime, textLanguage, isAd, AIGCDescription, ShowAIGC,
 CategoryType, author{uniqueId,nickname,verified,signature,…}, stats{diggCount,commentCount,shareCount,playCount,
 collectCount}, statsV2{…,repostCount}, music{title,authorName,original,duration}, video{playAddr,downloadAddr,cover,
 duration,bitrateInfo[],claInfo{captionInfos[],originalLanguageInfo,noCaptionReason,hasOriginalAudio},
 subtitleInfos[]}, stickersOnItem[], imagePost?, poi?, anchors?, contentContext, diversificationId, itemCommentStatus`.
 
-### 4.3 React-State (Fiber)
+### 4.3 React state (fiber)
 
-Am `<article>` hängt `__reactFiber$…`. Zwei Ebenen darüber hält ein `useRef` das Item (`ref.current.value`,
-Hook-Index 10; Suche kostet ~0,1 ms). **Achtung, zweite Form:** dieses Objekt trägt `author` als **String**
-(Handle) und `nickname`, `authorId`, `avatarThumb` direkt am Item; `verified` fehlt. Der Mapper kennt beide Formen
-(Test „React-state shape"). Das MAIN-world-Skript nutzt den Weg, um jedem Artikel seine ID als DOM-Attribut zu
-geben — DOM-Attribute sind in beiden Welten sichtbar. Fragil: Hook-Reihenfolge und Tiefe können sich mit jedem
-TikTok-Deploy ändern; darum ist das Netzwerk der Primärweg und der Fiber nur die Zuordnung Artikel → ID.
+`__reactFiber$…` hangs on the `<article>`. Two levels above it, a `useRef` holds the item (`ref.current.value`,
+hook index 10; the search costs ~0.1 ms). **Caution, second shape:** this object carries `author` as a **string**
+(handle) and `nickname`, `authorId`, `avatarThumb` directly on the item; `verified` is missing. The mapper knows both shapes
+(test "React-state shape"). The MAIN-world script uses this path to give every article its ID as a DOM
+attribute — DOM attributes are visible in both worlds. Fragile: hook order and depth can change with every
+TikTok deploy; that is why the network is the primary path and the fiber is only the mapping article → ID.
 
-### 4.4 Hydration-Skript
+### 4.4 Hydration script
 
-`#__UNIVERSAL_DATA_FOR_REHYDRATION__` (258 KB, aus der isolated world lesbar) enthält auf `/foryou` **keine Items**
-(`webapp.app-context`, `biz-context`, `i18n`, `seo.abtest`, `a-b`). Auf direkt geladenen Videoseiten trägt es
-`webapp.video-detail`; nach SPA-Navigation nicht mehr (gemessen: Detailseite per Klick → Scope unverändert).
-Kein `SIGI_STATE` mehr. Fazit: nur für den Erstaufruf einer Videoseite brauchbar, nicht für den Feed.
+`#__UNIVERSAL_DATA_FOR_REHYDRATION__` (258 KB, readable from the isolated world) contains **no items** on `/foryou`
+(`webapp.app-context`, `biz-context`, `i18n`, `seo.abtest`, `a-b`). On directly loaded video pages it carries
+`webapp.video-detail`; after SPA navigation it no longer does (measured: detail page via click → scope unchanged).
+No `SIGI_STATE` any more. Conclusion: only usable for the initial load of a video page, not for the feed.
 
 ### 4.5 DOM
 
-`data-e2e` im FYP-Artikel (gemessen): `feed-video, video-desc, desc-span-*, search-common-link, sponsored-tag,
+`data-e2e` in the FYP article (measured): `feed-video, video-desc, desc-span-*, search-common-link, sponsored-tag,
 video-author-avatar, feed-follow, like-icon/-count, comment-icon/-count, favorite-icon/-count, share-icon/-count,
-video-music`. Links: `/@<handle>` und `/music/…`, **kein** `/video/<id>`. `video-desc` liefert Spans mit
-Zeilenumbrüchen (Whitespace normalisieren). Extraktion aller sichtbaren Artikel: **0,3 ms**. Artikel werden als
-leere Platzhalter eingefügt (10 im DOM) und beim Näherkommen gefüllt; der Füllvorgang ist eine Mutation
-(Einfügung → gefüllt in 0–1 ms), die MutationObserver-Erkennung ist also sofort. Elemente werden recycelt (59
-Artikel-Elemente in 5 Scrolls) → `onItemRemoved` ist nötig, sonst hängen Overlays an toten Knoten.
+video-music`. Links: `/@<handle>` and `/music/…`, **no** `/video/<id>`. `video-desc` yields spans with
+line breaks (normalise whitespace). Extraction of all visible articles: **0.3 ms**. Articles are inserted as
+empty placeholders (10 in the DOM) and filled as the user approaches; the filling is a mutation
+(insertion → filled in 0–1 ms), so MutationObserver detection is immediate. Elements are recycled (59
+article elements in 5 scrolls) → `onItemRemoved` is needed, otherwise overlays hang on dead nodes.
 
-### 4.6 Kommentare
+### 4.6 Comments
 
-- Öffnen des Panels lädt 4 Seiten (18+18+18+17) in ~1,2 s; erste Antwort ~380 ms nach Klick. Ausgeloggt führt der
-  Klick auf die Detailseite mit Login-Modal.
-- **Ohne Signatur** aus dem Seitenkontext: `/api/comment/list/?aid=1988&aweme_id=<id>&count=20&cursor=0` → 200,
-  18 Kommentare, `total`, `has_more`; Replies: `/api/comment/list/reply/?aid=1988&comment_id=<cid>&item_id=<id>
-  &count=3&cursor=0` → 200, 308 ms. Ein Aufruf mit zusätzlichen App-Parametern lieferte einen leeren Body — die
-  minimale URL ist die robuste.
-- Felder je Kommentar: `text, digg_count, reply_comment_total, create_time, comment_language, user{nickname,
-  unique_id}, author_pin, text_extra, label_list`. Sortierung: TikToks Ranking (erster Kommentar 689 K Likes) —
-  **die erste Seite ist die Stichprobe „Top-Kommentare"**.
-- Empfehlung: erst nach `onItem`, nur für das aktive Video, eine Seite, mit AbortController beim Wechsel. Nicht
-  gebaut, weil `FeedItem` kein Feld dafür hat (Vorschlag 9.2).
+- Opening the panel loads 4 pages (18+18+18+17) in ~1.2 s; first response ~380 ms after the click. Logged out, the
+  click leads to the detail page with a login modal.
+- **Without a signature** from the page context: `/api/comment/list/?aid=1988&aweme_id=<id>&count=20&cursor=0` → 200,
+  18 comments, `total`, `has_more`; replies: `/api/comment/list/reply/?aid=1988&comment_id=<cid>&item_id=<id>
+  &count=3&cursor=0` → 200, 308 ms. A call with additional app parameters returned an empty body — the
+  minimal URL is the robust one.
+- Fields per comment: `text, digg_count, reply_comment_total, create_time, comment_language, user{nickname,
+  unique_id}, author_pin, text_extra, label_list`. Sorting: TikTok's ranking (first comment 689 K likes) —
+  **the first page is the "top comments" sample**.
+- Recommendation: only after `onItem`, only for the active video, one page, with an AbortController on switch. Not
+  built, because `FeedItem` has no field for it (proposal 9.2).
 
-### 4.7 Video und Audio
+### 4.7 Video and audio
 
-- `playAddr` liefert MP4 (h264 ~350 kbps, zusätzlich h265-Varianten in `bitrateInfo`). Aus dem Seitenkontext mit
-  Cookies: 206/200; aus Node ohne Referer: 403 (`Access-Control-Allow-Origin: https://www.tiktok.com`).
-- Der Player hat das aktive und oft das nächste Video bereits gepuffert (Fetch 4 ms aus dem Cache); ungepuffert
-  172 ms für 9 s/392 KB, 324 ms für 35 s/2,9 MB.
-- `AudioContext.decodeAudioData`: 48–52 ms für 9–18 s (48 kHz Stereo); Resampling auf 16 kHz mono per
-  `OfflineAudioContext`: 4 ms. Damit braucht der Browser **kein ffmpeg**.
-- `<video>.currentSrc` ist eine `blob:`-URL eines `MediaSource` → nicht ladbar; `textTracks` = 0.
-- `music.playUrl` ist aus dem Seitenkontext nicht ladbar (CORS).
+- `playAddr` delivers MP4 (h264 ~350 kbps, plus h265 variants in `bitrateInfo`). From the page context with
+  cookies: 206/200; from Node without a referer: 403 (`Access-Control-Allow-Origin: https://www.tiktok.com`).
+- The player has already buffered the active and often the next video (fetch 4 ms from the cache); unbuffered
+  172 ms for 9 s/392 KB, 324 ms for 35 s/2.9 MB.
+- `AudioContext.decodeAudioData`: 48–52 ms for 9–18 s (48 kHz stereo); resampling to 16 kHz mono via
+  `OfflineAudioContext`: 4 ms. So the browser needs **no ffmpeg**.
+- `<video>.currentSrc` is a `blob:` URL of a `MediaSource` → not loadable; `textTracks` = 0.
+- `music.playUrl` is not loadable from the page context (CORS).
 
-### 4.8 Content Detection beim Scrollen
+### 4.8 Content detection while scrolling
 
-| Methode | Gemessen | Urteil |
+| Method | Measured | Verdict |
 |---|---|---|
-| `play`-Ereignis (capture, `document`) | Taste → `play` des neuen Videos in **287–418 ms** (10 Messungen) | **Primär**: sagt, welches Video *läuft* |
-| Polling `video.paused` | 261–357 ms (25 Messungen), gleiche Größenordnung | zweite Herleitung, nicht nötig im Produkt |
-| MutationObserver auf Artikel | Artikel gefüllt → sichtbar in 0–1 ms; Items 1,0–3,6 s vor `play` | **Primär für `onItem`** |
-| IntersectionObserver | nicht gemessen; auf dem FYP ist das spielende Video immer das sichtbare | Reserve für Seiten ohne Autoplay (Profil-Raster) |
-| URL-Änderung | **keine** auf `/foryou` (bleibt `/foryou`) | unbrauchbar |
-| Netzwerk (`item_list`) | 8 Items pro Antwort, ~2–5 s Vorlauf | Primär für *Daten*, nicht für „jetzt sichtbar" |
-| `video.currentSrc`-Wechsel (DOKUMENTATION.md) | funktioniert, aber `play` ist direkter | Reserve |
+| `play` event (capture, `document`) | key press → `play` of the new video in **287–418 ms** (10 measurements) | **Primary**: tells which video is *playing* |
+| Polling `video.paused` | 261–357 ms (25 measurements), same order of magnitude | second derivation, not needed in the product |
+| MutationObserver on articles | article filled → visible in 0–1 ms; items 1.0–3.6 s before `play` | **Primary for `onItem`** |
+| IntersectionObserver | not measured; on the FYP the playing video is always the visible one | reserve for pages without autoplay (profile grid) |
+| URL change | **none** on `/foryou` (stays `/foryou`) | unusable |
+| Network (`item_list`) | 8 items per response, ~2–5 s lead | primary for *data*, not for "visible now" |
+| `video.currentSrc` change (DOKUMENTATION.md) | works, but `play` is more direct | reserve |
 
-### 4.9 Zeitachse (gemessen, Integrationslauf 3 und 4)
+### 4.9 Timeline (measured, integration runs 3 and 4)
 
 ```
-T−3,5 s … T−1,0 s   Item-JSON da, Artikel gefüllt → sink.onItem (echte ID, Text, Hashtags, Autor,
-                     Zähler, createdAt; captions, falls VTT schon geladen: 3 von 12 Items)
-T+0                  Nutzer landet auf dem Video (play-Ereignis, ~300 ms nach der Taste)
-T+0 … +1 ms          onItem für das allererste Video der Seite (im selben Frame)
-T+0,5 s              erster Captions-Chunk (VTT gepaced; Cue-Start 0,4 s)
-T+0,84 … +1,4 s      erster STT-Chunk (10-s-Fenster; Ausreißer 3,0 s / 4,4 s während des Seitenstarts)
-T+2,3 s              zweites STT-Fenster (Chunks 2 und 3 …)
-Wechsel              alter Job abgebrochen: 0 Nachzügler-Chunks in drei Läufen
+T−3.5 s … T−1.0 s   item JSON present, article filled → sink.onItem (real ID, text, hashtags, author,
+                     counters, createdAt; captions if the VTT is already loaded: 3 of 12 items)
+T+0                  user lands on the video (play event, ~300 ms after the key press)
+T+0 … +1 ms          onItem for the very first video of the page (in the same frame)
+T+0.5 s              first captions chunk (VTT paced; cue start 0.4 s)
+T+0.84 … +1.4 s      first STT chunk (10-s window; outliers 3.0 s / 4.4 s during page start-up)
+T+2.3 s              second STT window (chunks 2 and 3 …)
+switch               old job aborted: 0 straggler chunks in three runs
 ```
 
 ---
 
-## 5. X: Datenwege (mit der Login-Grenze)
+## 5. X: data paths (with the login limit)
 
-### 5.1 Was beobachtbar war
+### 5.1 What was observable
 
-- Ausgeloggt liefert `x.com/home` die Startseite (0 Tweets) und `x.com/<user>/status/<id>` eine **statische
-  Seite** mit Text, Zählern und Antworten, aber **ohne ein einziges `data-testid`** und ohne GraphQL-Aufrufe.
-  Das eingeloggte Feed-DOM konnte deshalb nicht vermessen werden.
-- Die Embed-Seite `platform.twitter.com/embed/Tweet.html?id=…` nutzt dieselben `data-testid`s (`tweetText`,
-  `icon-verified`, `UserAvatar-Container-*`) wie die App — ein Hinweis, dass die Gerüst-Selektoren aktuell sind.
-- **Syndication-API** `https://cdn.syndication.twimg.com/tweet-result?id=<id>&token=<token>` (Token-Formel in
-  `x-syndication.ts`): 200 ohne Login, JSON mit `text, user{screen_name,name,is_blue_verified,verified}, entities,
-  favorite_count, conversation_count, lang, created_at (ISO), mediaDetails?, quoted_tweet?`. Fixture live gesichert.
-  Der Timeline-Endpunkt `syndication.twitter.com/srv/timeline-profile/screen-name/<u>` antwortete 429.
+- Logged out, `x.com/home` returns the landing page (0 tweets) and `x.com/<user>/status/<id>` a **static
+  page** with text, counters and replies, but **without a single `data-testid`** and without GraphQL calls.
+  The logged-in feed DOM could therefore not be measured.
+- The embed page `platform.twitter.com/embed/Tweet.html?id=…` uses the same `data-testid`s (`tweetText`,
+  `icon-verified`, `UserAvatar-Container-*`) as the app — a hint that the scaffold selectors are current.
+- **Syndication API** `https://cdn.syndication.twimg.com/tweet-result?id=<id>&token=<token>` (token formula in
+  `x-syndication.ts`): 200 without login, JSON with `text, user{screen_name,name,is_blue_verified,verified}, entities,
+  favorite_count, conversation_count, lang, created_at (ISO), mediaDetails?, quoted_tweet?`. Fixture saved live.
+  The timeline endpoint `syndication.twitter.com/srv/timeline-profile/screen-name/<u>` answered 429.
 
-### 5.2 GraphQL (Primärweg, unverifiziert live)
+### 5.2 GraphQL (primary path, unverified live)
 
-X' App lädt den Feed über `/i/api/graphql/<hash>/HomeTimeline` (bzw. `HomeLatestTimeline`, `TweetDetail`,
-`UserTweets`, `SearchTimeline`). Alle Antworten enthalten dieselbe Tweet-Entität (`tweet_results.result`):
+X's app loads the feed via `/i/api/graphql/<hash>/HomeTimeline` (or `HomeLatestTimeline`, `TweetDetail`,
+`UserTweets`, `SearchTimeline`). All responses contain the same tweet entity (`tweet_results.result`):
 `rest_id, legacy{full_text, created_at, lang, favorite_count, retweet_count, reply_count, quote_count,
 bookmark_count, entities{hashtags,urls,user_mentions,media}, extended_entities{media[{type, media_url_https,
 ext_alt_text, video_info.variants[]}]}, retweeted_status_result, quoted_status_id_str}, core.user_results.result
 {legacy{screen_name,name,verified} | core{screen_name,name}, is_blue_verified, verification{verified}},
-note_tweet.note_tweet_results.result{text, entity_set} (lange Posts), quoted_status_result, views.count,
-birdwatch_pivot (Community Note)`; manchmal in `TweetWithVisibilityResults{tweet}` verpackt.
-Quelle der Form: öffentliche Typdefinitionen (the-convocation/twitter-scraper, `timeline-v1.ts`/`v2.ts`,
-abgerufen 2026-09-21) — **keine eigene Beobachtung**. Der Mapper (`x-graphql.ts`) ist gegen eine
-synthetische Fixture getestet und muss mit `scraper/research/console-probes/x-graphql-capture.js` auf einem
-eingeloggten Profil bestätigt werden (Aufgabe T-006).
+note_tweet.note_tweet_results.result{text, entity_set} (long posts), quoted_status_result, views.count,
+birdwatch_pivot (Community Note)`; sometimes wrapped in `TweetWithVisibilityResults{tweet}`.
+Source of the shape: public type definitions (the-convocation/twitter-scraper, `timeline-v1.ts`/`v2.ts`,
+retrieved 2026-09-21) — **not our own observation**. The mapper (`x-graphql.ts`) is tested against a
+synthetic fixture and must be confirmed with `scraper/research/console-probes/x-graphql-capture.js` on a
+logged-in profile (task T-006).
 
-Was der GraphQL-Weg gegenüber dem DOM bringt: den **vollen Text langer Posts** (im DOM „Show more"), Alt-Texte,
-Views, Sprache, **Community Notes**, Quote-Text auch wenn nicht gerendert, MP4-Varianten mit Bitrate.
+What the GraphQL path brings compared with the DOM: the **full text of long posts** ("Show more" in the DOM), alt texts,
+views, language, **Community Notes**, quote text even when not rendered, MP4 variants with bitrate.
 
-### 5.3 DOM (Fallback)
+### 5.3 DOM (fallback)
 
 `article[data-testid="tweet"]`, `tweetText`, `User-Name`, `tweetPhoto img`, `video`, `a[href*="/status/"] time`,
-`socialContext` — vom Gerüst verifiziert („funktioniert schon"), in dieser Sitzung nicht re-verifiziert.
-Ergänzt: `tweet-text-show-more-link` als Kürzungs-Erkennung (Debug-Log). Zweiter `tweetText` = Quote (Heuristik
-des Gerüsts, unverändert).
+`socialContext` — verified by the scaffold ("already works"), not re-verified in this session.
+Added: `tweet-text-show-more-link` as truncation detection (debug log). Second `tweetText` = quote (heuristic
+of the scaffold, unchanged).
 
-### 5.4 Video auf X
+### 5.4 Video on X
 
-MP4-Varianten liegen auf `video.twimg.com` (aus `video_info.variants`, höchste Bitrate gewählt). Ob der Download
-aus dem Seitenkontext erlaubt ist (CORS), war ohne Login **nicht prüfbar**; X-Videos haben praktisch nie
-Untertitel. Der STT-Pfad ist plattformneutral gebaut (`transcribeFromUrl`), aber für X nicht verdrahtet, bis der
-CORS-Punkt geklärt ist.
-
----
-
-## 6. Speech-to-Text: gemessen und verglichen
-
-Lokal vorhanden: `whisper-cli`, `whisper-server`, `whisper-stream` (whisper.cpp via Homebrew, Metal aktiv) und
-`ggml-large-v3-turbo.bin` (1,5 GB). Testclip: neutrale synthetische Sprache (macOS `say`), 5/10/28 s, 16 kHz mono.
-
-| Lauf | Audio | Encode | Gesamt (Werkzeug) | Wall (Aufruf) |
-|---|---|---|---|---|
-| CLI, voller Kontext | 5 s | 1,07 s | 2,49 s | 3,14 s |
-| CLI, `-ac 512` | 5 s | 0,59 s | 1,57 s | 2,13 s |
-| CLI, `-ac 384` | 5 s | 0,33 s | 1,05 s | 1,61 s |
-| CLI, voller Kontext | 10 s | 1,14 s | 2,11 s | 2,61 s |
-| CLI, `-ac 512` | 10 s | 0,32 s | 1,24 s | 1,60 s |
-| CLI, voller Kontext | 28 s | 1,02 s | 2,63 s | 3,12 s |
-| CLI, `-l auto` | 28 s | 2 × 1,0 s | 3,50 s | 4,15 s |
-| Server (Modell geladen), voller Kontext | 5 / 10 / 28 s | — | — | 1,17 / 1,30 / 1,90 s |
-| Server, `-ac 768` | 5 / 10 s | — | — | 0,75 / 0,80 s |
-| Server, `-ac 768` | 28 s | — | — | 6,67 s (Kontext zu klein → mehrere Fenster) |
-| Server, MP4/AAC-Eingabe mit `--convert` | 28 s | — | — | 1,92 s (ffmpeg-Umwandlung ~0) |
-
-Erkenntnisse: der Encode kostet pro 30-s-Fenster ~1,0 s, **unabhängig von der Audiolänge**; `--audio-ctx`
-verkürzt ihn proportional bei gleicher Erkennung (10 s: identischer Text bei 512 und voll). Modell-Ladezeit
-0,44–1,27 s je Prozess → der Server (Modell im Speicher) ist Pflicht. Sprachhinweis spart ~1 s (TikTok liefert
-`textLanguage`). `verbose_json` gibt Segmente mit Zeiten. ffmpeg-Dekodierung 10 s: 24 ms (falls doch serverseitig).
-
-Optionen im Vergleich (nur die erste Zeile ist gemessen):
-
-| Option | Erster Text | Datenschutz | Aufwand | Urteil |
-|---|---|---|---|---|
-| **whisper.cpp lokal, `whisper-server`, WAV-Fenster aus dem Browser** | 0,84–1,4 s nach `play` (gemessen) | alles lokal | Companion-Prozess starten (`scraper/companion/whisper-server.sh`) | **gewählt** |
-| Cloud-STT (Deepgram-Streaming, alter Plan) | typ. 0,5–1 s (übernommen, nicht gemessen) | Audio verlässt den Rechner | Key, Tab-Capture, Offscreen-Dokument, Ton wird stumm (DOKUMENTATION.md 3.2) | Reserve |
-| Whisper im Browser (WebGPU, transformers.js, tiny/base) | 1–3 s (übernommen) | lokal | 40–150 MB Modell im Extension-Kontext, deutlich schlechtere Erkennung | später prüfen |
-| Web Speech API | — | — | nur Mikrofon, kein Tab-Audio | ungeeignet |
-| MLX-Whisper (Apple) | vergleichbar mit whisper.cpp (übernommen) | lokal | Python-Prozess, kein HTTP-Server mitgeliefert | Alternative zum Companion |
-| `whisper-stream` (Mikrofon-Streaming) | — | lokal | nimmt vom Mikro, nicht vom Tab | ungeeignet |
-
-Progressive Transkription: gebaut als Fenster von 10 s (erstes Fenster = Sekunden 0–10 → ein Chunk, dann 10–20 …).
-Kleinere erste Fenster (5 s, `-ac 512`: 0,75 s) sind möglich; 10 s wählte ich, weil der Chunk dann einen Satz trägt
-und die Glue-Schicht pro Chunk eine ganze Analyse auslöst.
+MP4 variants live on `video.twimg.com` (from `video_info.variants`, highest bitrate chosen). Whether the download
+from the page context is allowed (CORS) was **not checkable** without a login; X videos practically never have
+subtitles. The STT path is built platform-neutral (`transcribeFromUrl`), but not wired up for X until the
+CORS point is clarified.
 
 ---
 
-## 7. Architektur
+## 6. Speech-to-text: measured and compared
+
+Available locally: `whisper-cli`, `whisper-server`, `whisper-stream` (whisper.cpp via Homebrew, Metal active) and
+`ggml-large-v3-turbo.bin` (1.5 GB). Test clip: neutral synthetic speech (macOS `say`), 5/10/28 s, 16 kHz mono.
+
+| Run | Audio | Encode | Total (tool) | Wall (call) |
+|---|---|---|---|---|
+| CLI, full context | 5 s | 1.07 s | 2.49 s | 3.14 s |
+| CLI, `-ac 512` | 5 s | 0.59 s | 1.57 s | 2.13 s |
+| CLI, `-ac 384` | 5 s | 0.33 s | 1.05 s | 1.61 s |
+| CLI, full context | 10 s | 1.14 s | 2.11 s | 2.61 s |
+| CLI, `-ac 512` | 10 s | 0.32 s | 1.24 s | 1.60 s |
+| CLI, full context | 28 s | 1.02 s | 2.63 s | 3.12 s |
+| CLI, `-l auto` | 28 s | 2 × 1.0 s | 3.50 s | 4.15 s |
+| Server (model loaded), full context | 5 / 10 / 28 s | — | — | 1.17 / 1.30 / 1.90 s |
+| Server, `-ac 768` | 5 / 10 s | — | — | 0.75 / 0.80 s |
+| Server, `-ac 768` | 28 s | — | — | 6.67 s (context too small → several windows) |
+| Server, MP4/AAC input with `--convert` | 28 s | — | — | 1.92 s (ffmpeg conversion ~0) |
+
+Findings: the encode costs ~1.0 s per 30-s window, **independent of the audio length**; `--audio-ctx`
+shortens it proportionally with the same recognition (10 s: identical text at 512 and full). Model load time
+0.44–1.27 s per process → the server (model in memory) is mandatory. A language hint saves ~1 s (TikTok delivers
+`textLanguage`). `verbose_json` gives segments with times. ffmpeg decoding of 10 s: 24 ms (in case it is done server-side after all).
+
+Options compared (only the first row is measured):
+
+| Option | First text | Privacy | Effort | Verdict |
+|---|---|---|---|---|
+| **whisper.cpp locally, `whisper-server`, WAV windows from the browser** | 0.84–1.4 s after `play` (measured) | everything local | start the companion process (`scraper/companion/whisper-server.sh`) | **chosen** |
+| Cloud STT (Deepgram streaming, old plan) | typ. 0.5–1 s (adopted, not measured) | audio leaves the machine | key, tab capture, offscreen document, sound goes mute (DOKUMENTATION.md 3.2) | reserve |
+| Whisper in the browser (WebGPU, transformers.js, tiny/base) | 1–3 s (adopted) | local | 40–150 MB model in the extension context, clearly worse recognition | check later |
+| Web Speech API | — | — | microphone only, no tab audio | unsuitable |
+| MLX-Whisper (Apple) | comparable to whisper.cpp (adopted) | local | Python process, no HTTP server included | alternative to the companion |
+| `whisper-stream` (microphone streaming) | — | local | records from the mic, not from the tab | unsuitable |
+
+Progressive transcription: built as windows of 10 s (first window = seconds 0–10 → one chunk, then 10–20 …).
+Smaller first windows (5 s, `-ac 512`: 0.75 s) are possible; I chose 10 s because the chunk then carries a sentence
+and the glue layer triggers a whole analysis per chunk.
+
+---
+
+## 7. Architecture
 
 ```
  tiktok.com / x.com  ─────────────────────────────────────────────────────────────
  │ MAIN world   scraper/main-world.ts  (manifest: world MAIN, document_start)
- │   fetch/XHR-Wrapper ──► item_list / graphql JSON ──► window.postMessage ─┐
- │   TikTok: Artikel ──Fiber──► Item ──► data-fedo-tiktok-id am Artikel     │
+ │   fetch/XHR wrapper ──► item_list / graphql JSON ──► window.postMessage ─┐
+ │   TikTok: article ──fiber──► item ──► data-fedo-tiktok-id on the article │
  │                                                                          ▼
- │ isolated world (Content Script)                                  scraper/bridge.ts
- │   platforms/tiktok.ts  Cache rawId→MappedTikTok  ◄──── listenBridge ──────┘
- │     trackFeed(Artikel) → resolve(Attribut → Cache | DOM-Fallback) → sink.onItem
- │     play-Ereignis → transcript.setActive(...)
- │   platforms/x.ts        Cache statusId→MappedTweet, observeFeed(article) → sink.onItem
- │   transcript/controller.ts  genau EIN Job · prefetch(VTT) · Abbruch beim Wechsel
- │     captions.ts  VTT laden/parsen, Cues im Takt (≤ 1 Chunk / 750 ms)
- │     stt.ts       MP4 laden → decodeAudioData → 16 kHz WAV-Fenster → POST
+ │ isolated world (content script)                                  scraper/bridge.ts
+ │   platforms/tiktok.ts  cache rawId→MappedTikTok  ◄──── listenBridge ──────┘
+ │     trackFeed(article) → resolve(attribute → cache | DOM fallback) → sink.onItem
+ │     play event → transcript.setActive(...)
+ │   platforms/x.ts        cache statusId→MappedTweet, observeFeed(article) → sink.onItem
+ │   transcript/controller.ts  exactly ONE job · prefetch(VTT) · abort on switch
+ │     captions.ts  load/parse VTT, cues in step (≤ 1 chunk / 750 ms)
+ │     stt.ts       load MP4 → decodeAudioData → 16 kHz WAV windows → POST
  └──────────────────────────────────────────────────────────────────────────────
                      │ http://127.0.0.1:8181/inference  (CORS *)
                      ▼
-              whisper-server  (scraper/companion/whisper-server.sh, Modell im Speicher)
+              whisper-server  (scraper/companion/whisper-server.sh, model in memory)
 ```
 
-Zwei Details, die erst der Integrationslauf erzwungen hat: Das Content-Script startet bei `document_idle`, also
-nach der ersten Item-Antwort (~2 s) — die MAIN world hält deshalb die letzten 64 Datensätze und liefert sie auf
-Anfrage nach (Replay: erste Items 29 ms nach Installation, Lauf 6). Und ein Artikel gilt erst als „bereit", wenn
-sein Datensatz im Cache liegt (oder 1,5 s vergangen sind) — die ID am Artikel allein reicht nicht, weil sie vor
-dem Replay da ist.
+Two details that only the integration run forced: the content script starts at `document_idle`, i.e.
+after the first item response (~2 s) — the MAIN world therefore keeps the last 64 records and delivers them on
+request (replay: first items 29 ms after installation, run 6). And an article only counts as "ready" once
+its record is in the cache (or 1.5 s have passed) — the ID on the article alone is not enough, because it is there
+before the replay.
 
-Warum so und nicht anders:
+Why this way and not another:
 
-| Alternative | Warum nicht (gemessen oder aus der Doku) |
+| Alternative | Why not (measured or from the docs) |
 |---|---|
-| Nur DOM | keine Video-ID, keine Zähler, keine Untertitel-URL, kein MP4 (blob) auf TikTok |
-| `chrome.webRequest` | MV3 liefert keine Antwort-Bodies |
-| `chrome.debugger` (CDP aus der Extension) | volle Bodies, aber gelber Warnbalken „wird debuggt", schwer, Jury sieht es |
-| Fetch-Patch per `<script>`-Injektion aus dem Content-Script | TikToks CSP blockt Inline-Skripte; `web_accessible_resources` wäre ebenfalls eine Manifest-Änderung → dann lieber `world: MAIN` |
-| Tab-Capture + Offscreen (alter Plan) | Tab wird stumm, Echtzeit-Zwang (kann nie schneller als das Video), zusätzliche Rechte |
-| Native Messaging statt HTTP | Installation eines Host-Manifests je Nutzer; `whisper-server` spricht schon HTTP mit CORS |
-| STT im Background-Worker | sauberer gegen CSP/LNA (Abschnitt 12), braucht aber einen neuen Nachrichtentyp in `contracts/messages.ts` — Vorschlag, nicht gemacht |
+| DOM only | no video ID, no counters, no subtitle URL, no MP4 (blob) on TikTok |
+| `chrome.webRequest` | MV3 delivers no response bodies |
+| `chrome.debugger` (CDP from the extension) | full bodies, but a yellow warning bar "is being debugged", heavy, the jury sees it |
+| Fetch patch via `<script>` injection from the content script | TikTok's CSP blocks inline scripts; `web_accessible_resources` would also be a manifest change → then rather `world: MAIN` |
+| Tab capture + offscreen (old plan) | tab goes mute, real-time constraint (can never be faster than the video), additional permissions |
+| Native messaging instead of HTTP | installation of a host manifest per user; `whisper-server` already speaks HTTP with CORS |
+| STT in the background worker | cleaner with regard to CSP/LNA (section 12), but needs a new message type in `contracts/messages.ts` — proposal, not done |
 
-Safari/WebKit: `world: MAIN` in `content_scripts` gibt es dort nicht in gleicher Form; der Bridge-Ansatz bräuchte
-eine Skript-Injektion mit `web_accessible_resources`. Nicht untersucht, Chrome ist die Zielplattform des Manifests.
+Safari/WebKit: `world: MAIN` in `content_scripts` does not exist there in the same form; the bridge approach would need
+a script injection with `web_accessible_resources`. Not investigated, Chrome is the target platform of the manifest.
 
 ---
 
-## 8. Fallback-Strategie je Feld (TikTok)
+## 8. Fallback strategy per field (TikTok)
 
 ```
-id          Bridge/Attribut ─► (Fiber, MAIN) ─► Hash(handle+text)          [Attribut fehlt >1,5 s → Hash]
+id          bridge/attribute ─► (fiber, MAIN) ─► hash(handle+text)          [attribute missing >1.5 s → hash]
 text        contents[].desc ─► desc ─► DOM video-desc
-hashtags    textExtra ─► challenges ─► Regex über text
-handle      author.uniqueId | author (String) ─► DOM a[href^="/@"]
+hashtags    textExtra ─► challenges ─► regex over text
+handle      author.uniqueId | author (string) ─► DOM a[href^="/@"]
 displayName author.nickname | nickname ─► —
-media       playAddr (+cover) | imagePost ─► DOM <video> (blob, nur als Marker)
-captions    VTT vorab geladen (Prefetch beim Eintreffen des Items) ─► leer, dann onTranscript
-transcript  VTT gepaced ─► STT lokal ─► nichts (Companion aus)
+media       playAddr (+cover) | imagePost ─► DOM <video> (blob, only as a marker)
+captions    VTT loaded in advance (prefetch when the item arrives) ─► empty, then onTranscript
+transcript  VTT paced ─► STT local ─► nothing (companion off)
 ```
-Der Wechsel ist automatisch: fehlt die Bridge (`data-fedo-main-world` nicht gesetzt), läuft sofort der DOM-Pfad
-(Integrationslauf 1: 6 Items mit Handle, Text, Hashtags, 3 `onItemRemoved`, aber Hash-IDs und kein Transcript).
+The switch is automatic: if the bridge is missing (`data-fedo-main-world` not set), the DOM path runs immediately
+(integration run 1: 6 items with handle, text, hashtags, 3 `onItemRemoved`, but hash IDs and no transcript).
 
 ---
 
-## 9. FeedItem Coverage und Contract Compatibility
+## 9. FeedItem Coverage and Contract Compatibility
 
-`FeedItem` laut `contracts/types.ts` (unverändert):
+`FeedItem` according to `contracts/types.ts` (unchanged):
 
 ```ts
 id: string; platform: "x" | "tiktok"; url?: string;
@@ -370,285 +370,285 @@ quotedText?: string; captions?: string; isRepost?: boolean; createdAt?: string; 
 
 ### 9.1 Coverage
 
-| Feld | TikTok | X | Empfohlener Weg | Fallback | Latenz | Zuverlässigkeit / Einschränkung |
+| Field | TikTok | X | Recommended path | Fallback | Latency | Reliability / limitation |
 |---|---|---|---|---|---|---|
-| `id` | ja | ja | TikTok: Item-JSON per Attribut; X: Permalink `/status/<id>` (DOM) oder GraphQL `rest_id` | TikTok: Hash | vor dem Video / bei Artikel | TikTok 12/12 echt (Lauf 3); Hash nur ohne Bridge |
-| `platform` | ja | ja | Hostname | — | sofort | — |
-| `url` | ja | ja | aus id + handle | — | sofort | TikTok leer, wenn Handle fehlt |
-| `author.handle` | ja | ja | JSON / Permalink | DOM-Link | sofort | 12/12 |
-| `author.displayName` | ja | ja (DOM `User-Name` / GraphQL `name`) | JSON | — | sofort | 12/12 mit Bridge; **fehlt im DOM-Fallback** |
-| `author.verified` | teils | ja (`icon-verified` / `is_blue_verified`) | JSON (API-Form) | — | sofort | TikTok: in der React-State-Form nicht enthalten → `undefined` |
-| `text` | ja | ja | JSON `contents[].desc` / GraphQL `note_tweet` | DOM | sofort | X-DOM kürzt lange Posts („Show more") |
-| `hashtags` | ja | ja | strukturiert (`textExtra` / `entities.hashtags`) | Regex | sofort | Test: strukturiert = Regex auf dem Sample |
-| `media` | ja (video/image) | ja (image/video/gif + alt) | JSON / GraphQL Varianten | DOM `<img>`/`<video>` | sofort | TikTok-`<video>` ist blob (nur DOM-Fallback) |
-| `quotedText` | n/a | ja | GraphQL `quoted_status_result` | 2. `tweetText` im DOM | sofort | GraphQL live unverifiziert |
-| `captions` | teils | nein | VTT vorab laden | leer → `onTranscript` | vor dem Video, wenn Prefetch fertig | 3/12 Items im Lauf 3; Abdeckung 5/33 im Feed |
-| `isRepost` | nein (nicht im FYP-Sample) | ja (`socialContext` / `retweeted_status_result`) | GraphQL | DOM | sofort | TikTok: `statsV2.repostCount` existiert, Repost-Kennzeichen nicht gesehen |
-| `createdAt` | ja | ja | `createTime` / `created_at` / `<time datetime>` | — | sofort | 12/12 |
-| `scrapedAt` | ja | ja | `Date.now()` bei Emission | — | — | — |
+| `id` | yes | yes | TikTok: item JSON via attribute; X: permalink `/status/<id>` (DOM) or GraphQL `rest_id` | TikTok: hash | before the video / at article | TikTok 12/12 real (run 3); hash only without the bridge |
+| `platform` | yes | yes | hostname | — | immediate | — |
+| `url` | yes | yes | from id + handle | — | immediate | TikTok empty if the handle is missing |
+| `author.handle` | yes | yes | JSON / permalink | DOM link | immediate | 12/12 |
+| `author.displayName` | yes | yes (DOM `User-Name` / GraphQL `name`) | JSON | — | immediate | 12/12 with the bridge; **missing in the DOM fallback** |
+| `author.verified` | partly | yes (`icon-verified` / `is_blue_verified`) | JSON (API shape) | — | immediate | TikTok: not contained in the React-state shape → `undefined` |
+| `text` | yes | yes | JSON `contents[].desc` / GraphQL `note_tweet` | DOM | immediate | X DOM truncates long posts ("Show more") |
+| `hashtags` | yes | yes | structured (`textExtra` / `entities.hashtags`) | regex | immediate | test: structured = regex on the sample |
+| `media` | yes (video/image) | yes (image/video/gif + alt) | JSON / GraphQL variants | DOM `<img>`/`<video>` | immediate | TikTok `<video>` is blob (DOM fallback only) |
+| `quotedText` | n/a | yes | GraphQL `quoted_status_result` | 2nd `tweetText` in the DOM | immediate | GraphQL unverified live |
+| `captions` | partly | no | load the VTT in advance | empty → `onTranscript` | before the video, if the prefetch is done | 3/12 items in run 3; coverage 5/33 in the feed |
+| `isRepost` | no (not in the FYP sample) | yes (`socialContext` / `retweeted_status_result`) | GraphQL | DOM | immediate | TikTok: `statsV2.repostCount` exists, repost flag not seen |
+| `createdAt` | yes | yes | `createTime` / `created_at` / `<time datetime>` | — | immediate | 12/12 |
+| `scrapedAt` | yes | yes | `Date.now()` at emission | — | — | — |
 
-Leer bleiben können: `captions` (kein Track), `verified` (TikTok State-Form), `quotedText` (TikTok immer),
-`displayName`/`createdAt` (nur im DOM-Fallback ohne Bridge).
+May remain empty: `captions` (no track), `verified` (TikTok state shape), `quotedText` (TikTok always),
+`displayName`/`createdAt` (only in the DOM fallback without the bridge).
 
-### 9.2 Zusätzliche Felder, die die Plattformen liefern (Vorschlag, nicht umgesetzt)
+### 9.2 Additional fields that the platforms deliver (proposal, not implemented)
 
-Alle unten genannten Werte werden intern schon extrahiert (`TikTokExtras`, `XExtras` in den Mappern) und im
-Debug-Log ausgegeben; sie erreichen den Sink nicht, weil `FeedItem` sie nicht kennt.
+All values named below are already extracted internally (`TikTokExtras`, `XExtras` in the mappers) and printed in the
+debug log; they do not reach the sink because `FeedItem` does not know them.
 
-| Feld (Vorschlag) | Analyse-Mehrwert | Zuverlässigkeit | Typ | Plattform |
+| Field (proposal) | Added value for analysis | Reliability | Type | Platform |
 |---|---|---|---|---|
-| `language` | Jev-Fragen in der richtigen Sprache; STT-Sprachhinweis spart ~1 s | hoch (`textLanguage`, `lang`) | `string` (ISO 639-1, `un` = unbekannt) | beide |
-| `stats` | Reichweite/Engagement als Kontext für Engagement-Bait, Virality | hoch | `{ likes?, comments?, shares?, views?, saves?, quotes?, bookmarks? }` (number) | beide |
-| `stickerTexts` | Bildschirmtext ist bei Videos ohne Sprache oft die eigentliche Aussage | mittel (3/33 gefüllt) | `string[]` | TikTok |
-| `mentions` | Zielgruppen/Beteiligte, us-vs-them | hoch | `string[]` | beide |
-| `communityNote` | stärkstes Glaubwürdigkeitssignal auf X | unbekannt live (GraphQL) | `string` | X |
-| `links` (expandierte URLs) | Quellenangabe vs. keine Quelle (`factual_claim`) | hoch | `string[]` | beide (TikTok: `anchors`, selten) |
-| `isAd` / `aiLabel` | Commercial persuasion, synthetic media | hoch | `boolean`, `string` | TikTok |
-| `music` | Sound-Trends, Original vs. fremd | hoch | `{ title?, author?, original? }` | TikTok |
-| `durationSec` | STT-Budget, Chunk-Planung | hoch | `number` | TikTok |
-| `topComments` | Rezeption, Widerspruch, Kontext („das ist Satire") | mittel (unsignierter Endpunkt) | `{ text, likes, replies, language? }[]` | TikTok |
-| `possiblySensitive`, `inReplyToId`, `conversationId` | Thread-Kontext | unbekannt live | `boolean`, `string` | X |
+| `language` | Jev questions in the right language; STT language hint saves ~1 s | high (`textLanguage`, `lang`) | `string` (ISO 639-1, `un` = unknown) | both |
+| `stats` | reach/engagement as context for engagement bait, virality | high | `{ likes?, comments?, shares?, views?, saves?, quotes?, bookmarks? }` (number) | both |
+| `stickerTexts` | for videos without speech, on-screen text is often the actual message | medium (3/33 filled) | `string[]` | TikTok |
+| `mentions` | target groups/parties involved, us-vs-them | high | `string[]` | both |
+| `communityNote` | strongest credibility signal on X | unknown live (GraphQL) | `string` | X |
+| `links` (expanded URLs) | source given vs. no source (`factual_claim`) | high | `string[]` | both (TikTok: `anchors`, rare) |
+| `isAd` / `aiLabel` | Commercial persuasion, synthetic media | high | `boolean`, `string` | TikTok |
+| `music` | sound trends, original vs. someone else's | high | `{ title?, author?, original? }` | TikTok |
+| `durationSec` | STT budget, chunk planning | high | `number` | TikTok |
+| `topComments` | reception, disagreement, context ("this is satire") | medium (unsigned endpoint) | `{ text, likes, replies, language? }[]` | TikTok |
+| `possiblySensitive`, `inReplyToId`, `conversationId` | thread context | unknown live | `boolean`, `string` | X |
 
-Alle als **optionale** Felder — die Teamregel „Neue Felder lieber optional hinzufügen" (START_HERE.md §4).
+All as **optional** fields — the team rule "prefer adding new fields as optional" (START_HERE.md §4).
 
 ---
 
 ## 10. Transcript Integration
 
-- **Kanal:** `sink.onTranscript({ itemId, text, isFinal, t, source })` — existiert im Contract, wird jetzt bedient.
-- **Zuordnung:** `itemId` = `FeedItem.id` (`tiktok:<id>`); der Controller kennt nur das aktive Video.
-- **Auslöser:** das `play`-Ereignis des Videos (capture-Listener auf `document`), nicht die Sichtbarkeit — so
-  läuft nie ein Transcript für ein sichtbares, aber pausiertes Video.
-- **Captions-Pfad:** VTT wird geladen, sobald das Item aus dem Netz kommt (Prefetch) → oft steht der volle Text
-  schon in `item.captions` beim `onItem`. Zusätzlich werden die Cues im Takt der Wiedergabe als Chunks nachgereicht
-  (`isFinal: true`, `t` = Cue-Start, `source: "captions"`, höchstens ein Chunk je 750 ms, gebündelt), damit die
-  Werte „mitlaufen". Erster Chunk: 504 ms (Lauf 3), 13 ms und 201 ms (Lauf 7, vorab geladen) nach `play`.
-  TikTok nennt je Spur bis zu drei URL-Varianten (`url`, `urlList`: zwei CDN-Hosts + `tiktok.com/aweme/v1/play`);
-  der Abruf probiert sie der Reihe nach — mit nur der ersten scheiterten 5 von 7 Abrufen (Lauf 6), mit Fallback 0 (Lauf 7).
-- **STT-Pfad:** ohne Track → `sttAvailable()` (GET-Sonde, 5-s-Deckel, negatives Ergebnis nur 10 s gecacht — eine
-  frühere 800-ms-Sonde lief während des Seitenstarts in ein 3,5-s-Timeout und schaltete STT für eine Minute ab)
-  → MP4 laden → dekodieren → 10-s-Fenster → je Fenster ein Chunk (`source: "stt"`, `t` = Fensterbeginn).
-  Erster Chunk 840–1.413 ms nach `play` (4 von 6), Ausreißer 3,0 s und 4,4 s beim Seitenstart.
-- **Abbruch:** `setActive` für ein anderes Item ruft `stop()` (AbortController auf Fetches und POST, Pace-Timer
-  weg). Gemessen: 0 Nachzügler-Chunks in drei Läufen.
-- **Parallelität:** genau ein Job; nur VTT-Dateien werden für kommende Items vorab geladen (wenige KB).
-- **Was die Glue-Schicht daraus macht (gelesen, `extension/src/content.ts`):** jeder Chunk ersetzt den letzten
-  nicht-finalen und löst eine **komplette** Neu-Analyse mit allen Chunks aus; `background.ts` cached nur
-  `kind: "post"`. Folgen: (a) Chunk-Rate begrenzen (gemacht: 750 ms / 10-s-Fenster), (b) ein zweites `onItem` für
-  dieselbe ID würde vom Cache verschluckt — darum wird `onItem` genau einmal je Anchor emittiert.
-- **Doppelung, Entscheidung für den AI-Dev:** bei Items mit VTT steht der Text in `captions` **und** kommt als
-  Chunks; `ai/state.ts` schreibt beides in den State (`captions:` + `spoken_text:`). Vorschlag: bei `kind:
-  "transcript"` `captions` weglassen, wenn `transcript[0].source === "captions"`. Nicht meine Datei.
-- **Minimale Contract-Erweiterung, falls gewünscht (nicht gemacht):** keine nötig für den Betrieb. Sinnvoll wären
-  optional `TranscriptChunk.language?: string` und `TranscriptChunk.endT?: number`.
+- **Channel:** `sink.onTranscript({ itemId, text, isFinal, t, source })` — exists in the contract, is now served.
+- **Mapping:** `itemId` = `FeedItem.id` (`tiktok:<id>`); the controller only knows the active video.
+- **Trigger:** the `play` event of the video (capture listener on `document`), not visibility — so
+  a transcript never runs for a visible but paused video.
+- **Captions path:** the VTT is loaded as soon as the item comes off the network (prefetch) → often the full text
+  is already in `item.captions` at `onItem`. In addition, the cues are delivered as chunks in step with playback
+  (`isFinal: true`, `t` = cue start, `source: "captions"`, at most one chunk per 750 ms, bundled), so that the
+  values "run along". First chunk: 504 ms (run 3), 13 ms and 201 ms (run 7, loaded in advance) after `play`.
+  TikTok names up to three URL variants per track (`url`, `urlList`: two CDN hosts + `tiktok.com/aweme/v1/play`);
+  the fetch tries them in order — with only the first one, 5 of 7 fetches failed (run 6), with the fallback 0 (run 7).
+- **STT path:** without a track → `sttAvailable()` (GET probe, 5-s cap, negative result cached for only 10 s — an
+  earlier 800-ms probe ran into a 3.5-s timeout during page start-up and switched STT off for a minute)
+  → load MP4 → decode → 10-s windows → one chunk per window (`source: "stt"`, `t` = window start).
+  First chunk 840–1,413 ms after `play` (4 of 6), outliers 3.0 s and 4.4 s at page start-up.
+- **Abort:** `setActive` for a different item calls `stop()` (AbortController on fetches and POST, pace timer
+  gone). Measured: 0 straggler chunks in three runs.
+- **Parallelism:** exactly one job; only VTT files are loaded in advance for upcoming items (a few KB).
+- **What the glue layer makes of it (read, `extension/src/content.ts`):** every chunk replaces the last
+  non-final one and triggers a **complete** re-analysis with all chunks; `background.ts` only caches
+  `kind: "post"`. Consequences: (a) limit the chunk rate (done: 750 ms / 10-s windows), (b) a second `onItem` for
+  the same ID would be swallowed by the cache — that is why `onItem` is emitted exactly once per anchor.
+- **Duplication, decision for the AI dev:** for items with VTT the text is in `captions` **and** arrives as
+  chunks; `ai/state.ts` writes both into the state (`captions:` + `spoken_text:`). Proposal: for `kind:
+  "transcript"` omit `captions` if `transcript[0].source === "captions"`. Not my file.
+- **Minimal contract extension, if wanted (not done):** none needed for operation. Sensible would be
+  optional `TranscriptChunk.language?: string` and `TranscriptChunk.endT?: number`.
 
 ---
 
-## 11. Wann `sink.onItem` ausgelöst wird — Option A/B/C
+## 11. When `sink.onItem` is fired — option A/B/C
 
-- **Option C (später aktualisieren)** scheidet aus: `background.ts` cached das Ergebnis je `item.id`; ein zweites
-  `onItem` mit mehr Daten würde nie analysiert.
-- **Option B (kurzes Fenster)** ist nur für den DOM-Fallback nötig: ein gefüllter Artikel wartet bis zu 1,5 s auf die
-  ID aus der MAIN world (Messung: normalerweise kommt sie im selben Frame; einmal in 7 dauerte es länger als 400 ms
-  und erzeugte ein Doppel-Item mit Hash-ID — daher 1,5 s).
-- **Option A (sofort)** ist der Normalfall: das Item-JSON liegt 1–3,6 s vor dem Video vor, `onItem` feuert beim
-  Füllen des Artikels, `captions` sind oft schon dabei. Gemessen in drei Läufen (Abschnitt 14).
+- **Option C (update later)** is ruled out: `background.ts` caches the result per `item.id`; a second
+  `onItem` with more data would never be analysed.
+- **Option B (short window)** is only needed for the DOM fallback: a filled article waits up to 1.5 s for the
+  ID from the MAIN world (measurement: normally it arrives in the same frame; once in 7 it took longer than 400 ms
+  and produced a duplicate item with a hash ID — hence 1.5 s).
+- **Option A (immediately)** is the normal case: the item JSON is there 1–3.6 s before the video, `onItem` fires when
+  the article is filled, `captions` are often already included. Measured in three runs (section 14).
 
 ---
 
-## 12. Robustheit und Risiken
+## 12. Robustness and risks
 
-| Risiko | Einschätzung | Gegenmaßnahme |
+| Risk | Assessment | Countermeasure |
 |---|---|---|
-| TikTok ändert das Item-JSON | Form seit Jahren stabil (`itemList`, `desc`, `author`, `video`); zwei Autor-Formen gesehen | Mapper mit optionalen Feldern, Tests gegen Fixtures, DOM-Fallback |
-| React-Hook-Reihenfolge ändert sich | wahrscheinlich bei größeren Deploys | Fiber nur für die ID-Zuordnung; Suche bis Tiefe 6/60 Hooks; Fallback Hash |
-| `data-e2e`-Attribute ändern sich | selten, aber DOKUMENTATION.md fand 2 Selektoren, die heute fehlen | nur `feed-video`, `video-desc`, `/@`-Link im Einsatz |
-| Kommentar-Endpunkt verlangt wieder Signatur | möglich | Feature ist optional; dann Panel-Mithören |
-| Seiten-CSP blockt `127.0.0.1` | trifft nur den **Seitenkontext**; Content-Scripts umgehen die Seiten-CSP in Chrome — im CDP-Testlauf musste `bypassCSP` gesetzt werden | in der echten Extension prüfen (Abschnitt 15); Reserve: STT-POST über den Background-Worker (neuer Nachrichtentyp) |
-| Chrome „Local Network Access" (Berechtigungsabfrage für Loopback) | in Chromium 153 hier **nicht** ausgelöst (GET von tiktok.com an 127.0.0.1 kam mit CORS-Antwort zurück) | beobachten; Reserve wie oben |
-| Login-Wände (X) | X ohne Login nutzlos; TikTok ausgeloggt voll nutzbar | Zielnutzer ist eingeloggt |
-| Rate-Limits | Item-JSON: keine eigenen Aufrufe (mithören); VTT: 1 Datei je Video; STT: lokal; Kommentare: 1 Aufruf je Video | — |
-| Anti-Bot | wir senden nichts Zusätzliches an TikTok außer VTT/MP4-Abrufen, die der Player ohnehin macht | — |
-| CPU/RAM | MAIN-world-Wrapper: ~0 ms; Fiber-Suche 0,1 ms; Decode 50 ms; whisper ~1 s GPU je Fenster | ein Job gleichzeitig |
-| Datenschutz | alles lokal; keine Cloud; Fixtures bereinigt (keine Cookies/Tokens, Avatare/`secUid` entfernt) | — |
-| Seitenfehler `a.init is not a function` (einmal, Lauf 4) | Uncaught in TikToks Code, nicht unserem zuzuordnen; kein Funktionsverlust beobachtet | beobachten (T-007) |
-| Same-Origin-Spoofing auf der Bridge | Seitencode könnte Fake-Items posten | Mapper validieren die Form; kein Code-Pfad vertraut Strings blind |
+| TikTok changes the item JSON | shape stable for years (`itemList`, `desc`, `author`, `video`); two author shapes seen | mapper with optional fields, tests against fixtures, DOM fallback |
+| React hook order changes | likely with larger deploys | fiber only for the ID mapping; search up to depth 6/60 hooks; fallback hash |
+| `data-e2e` attributes change | rare, but DOKUMENTATION.md found 2 selectors that are missing today | only `feed-video`, `video-desc`, `/@` link in use |
+| Comment endpoint requires a signature again | possible | feature is optional; then listen in on the panel |
+| Page CSP blocks `127.0.0.1` | only affects the **page context**; content scripts bypass the page CSP in Chrome — in the CDP test run `bypassCSP` had to be set | check in the real extension (section 15); reserve: STT POST via the background worker (new message type) |
+| Chrome "Local Network Access" (permission prompt for loopback) | **not** triggered here in Chromium 153 (GET from tiktok.com to 127.0.0.1 came back with a CORS response) | observe; reserve as above |
+| Login walls (X) | X useless without login; TikTok fully usable logged out | target user is logged in |
+| Rate limits | item JSON: no calls of our own (listening in); VTT: 1 file per video; STT: local; comments: 1 call per video | — |
+| Anti-bot | we send nothing additional to TikTok apart from VTT/MP4 fetches that the player makes anyway | — |
+| CPU/RAM | MAIN-world wrapper: ~0 ms; fiber search 0.1 ms; decode 50 ms; whisper ~1 s GPU per window | one job at a time |
+| Privacy | everything local; no cloud; fixtures sanitised (no cookies/tokens, avatars/`secUid` removed) | — |
+| Page error `a.init is not a function` (once, run 4) | uncaught in TikTok's code, not attributable to ours; no loss of function observed | observe (T-007) |
+| Same-origin spoofing on the bridge | page code could post fake items | mappers validate the shape; no code path trusts strings blindly |
 
 ---
 
-## 13. Was gebaut wurde
+## 13. What was built
 
-Nur `scraper/` plus drei ausgewiesene Glue-Zeilen. `contracts/` unberührt.
+Only `scraper/` plus three listed glue lines. `contracts/` untouched.
 
-| Datei | Aufgabe |
+| File | Purpose |
 |---|---|
-| `scraper/bridge.ts` | Protokoll MAIN ↔ isolated (`postMessage`, Namespace, Flag, Attributname) |
-| `scraper/main-world.ts` | fetch/XHR-Wrapper, TikTok-Fiber → `data-fedo-tiktok-id`, Präsenz-Flag |
-| `scraper/platforms/tiktok-item.ts` | Item-JSON (beide Formen) → `FeedItem` + `TikTokExtras` |
-| `scraper/platforms/tiktok.ts` | Adapter: Bridge-Cache, `trackFeed`, DOM-Fallback, `play` → Transcript, `onItemRemoved` |
-| `scraper/platforms/x-graphql.ts` | Tweet-Entität → `FeedItem` + `XExtras` (note_tweet, Retweet, Quote, Medien, Community Note) |
-| `scraper/platforms/x-syndication.ts` | Syndication-JSON → `FeedItem`, Token-Formel |
-| `scraper/platforms/x.ts` | Adapter: Bridge-Cache nach Status-ID, DOM-Fallback, Kürzungs-Erkennung |
-| `scraper/observe.ts` | neu: `trackFeed` (Platzhalter-Listen, `onLeave`); `observeFeed` unverändert |
-| `scraper/transcript/captions.ts` | VTT laden/parsen, `paceCues` |
-| `scraper/transcript/stt.ts` | Sonde, MP4 → PCM 16 kHz → WAV → `whisper-server` |
-| `scraper/transcript/controller.ts` | ein Job, Prefetch, `captionsNow`, Abbruch |
-| `scraper/companion/whisper-server.sh` | Start des lokalen STT-Servers mit den gemessenen Flags |
-| `scraper/test/*.test.ts`, `scraper/test/fixtures/*` | 15 Tests; echte TikTok-Capture (bereinigt), echte Syndication-Antwort, synthetische GraphQL-Timeline |
-| `scraper/research/console-probes/*` | DevTools-Sonden (ohne Tooling reproduzierbar) |
-| `scraper/research/playwright/*` | Harness + Integrationssonde |
-| **Glue:** `extension/manifest.json` | zweiter `content_scripts`-Eintrag: `main-world.js`, `document_start`, `"world": "MAIN"` |
-| **Glue:** `scripts/build.mjs` | Bundle-Eintrag `scraper/main-world.ts → dist/main-world.js` |
-| **Root:** `package.json` | Script `test:scraper` (`node --import tsx --test`, keine neue Abhängigkeit) |
+| `scraper/bridge.ts` | protocol MAIN ↔ isolated (`postMessage`, namespace, flag, attribute name) |
+| `scraper/main-world.ts` | fetch/XHR wrapper, TikTok fiber → `data-fedo-tiktok-id`, presence flag |
+| `scraper/platforms/tiktok-item.ts` | item JSON (both shapes) → `FeedItem` + `TikTokExtras` |
+| `scraper/platforms/tiktok.ts` | adapter: bridge cache, `trackFeed`, DOM fallback, `play` → transcript, `onItemRemoved` |
+| `scraper/platforms/x-graphql.ts` | tweet entity → `FeedItem` + `XExtras` (note_tweet, retweet, quote, media, Community Note) |
+| `scraper/platforms/x-syndication.ts` | syndication JSON → `FeedItem`, token formula |
+| `scraper/platforms/x.ts` | adapter: bridge cache by status ID, DOM fallback, truncation detection |
+| `scraper/observe.ts` | new: `trackFeed` (placeholder lists, `onLeave`); `observeFeed` unchanged |
+| `scraper/transcript/captions.ts` | load/parse VTT, `paceCues` |
+| `scraper/transcript/stt.ts` | probe, MP4 → PCM 16 kHz → WAV → `whisper-server` |
+| `scraper/transcript/controller.ts` | one job, prefetch, `captionsNow`, abort |
+| `scraper/companion/whisper-server.sh` | starts the local STT server with the measured flags |
+| `scraper/test/*.test.ts`, `scraper/test/fixtures/*` | 15 tests; real TikTok capture (sanitised), real syndication response, synthetic GraphQL timeline |
+| `scraper/research/console-probes/*` | DevTools probes (reproducible without tooling) |
+| `scraper/research/playwright/*` | harness + integration probe |
+| **Glue:** `extension/manifest.json` | second `content_scripts` entry: `main-world.js`, `document_start`, `"world": "MAIN"` |
+| **Glue:** `scripts/build.mjs` | bundle entry `scraper/main-world.ts → dist/main-world.js` |
+| **Root:** `package.json` | script `test:scraper` (`node --import tsx --test`, no new dependency) |
 
-Nicht gebaut, bewusst: Kommentar-Abruf (kein Feld), X-STT (CORS ungeklärt), Bild-OCR, IntersectionObserver-Pfad,
+Not built, deliberately: comment retrieval (no field), X STT (CORS unclarified), image OCR, IntersectionObserver path,
 Safari.
 
 ---
 
-## 14. Integrationsläufe (Playwright, tiktok.com/foryou, ausgeloggt)
+## 14. Integration runs (Playwright, tiktok.com/foryou, logged out)
 
-| Lauf | Aufbau | Ergebnis |
+| Run | Setup | Result |
 |---|---|---|
-| 1 | MAIN-world-Skript scheiterte an fehlendem `documentElement` (CDP injiziert früher als `document_start`) → reiner DOM-Fallback | 6 Items (Hash-IDs, Handle, Text, Hashtags), 3 `onItemRemoved`, 0 Transcripts — der Fallback trägt |
-| 2 | MAIN world aktiv (Präsenz-Flag robust) | 10/10 Artikel mit ID-Attribut, 7 Items (6 echte IDs, 1 Hash nach 400 ms Wartezeit), `onItem` 0 ms bzw. 3,2 s vor `play`, 4 `onItemRemoved`; STT stumm (OPTIONS-Sonde → Preflight abgelehnt) |
-| 3 | Sonde auf GET, Wartezeit 1,5 s, 18 Videos | 12 Items, 0 Hash, 12× `createdAt`/Anzeigename, 3× `captions` beim `onItem`, 2 Captions-Chunks (erster 504 ms nach `play`), 9 `onItemRemoved`, 0 Nachzügler; STT stumm (800-ms-Sonden-Timeout beim Seitenstart) |
-| 4 | Sonde 5 s, negativer Cache 10 s, 16 Tasten (Tastatur-Navigation griff nur 6×) | 7 Items, 0 Hash, **9 STT-Chunks für 6 Videos**, erster Chunk 840/855/876/1.413 ms (Ausreißer 3.013, 4.441 ms), 0 Nachzügler, 4 `onItemRemoved` |
-| 5 | **Späte Installation** (Harness erst 5 s nach Laden, wie ein `document_idle`-Content-Script nach der ersten Item-Antwort) | **Regression gefunden:** 1 Item (Hash), danach nichts — `activeVideo` war mit `let` erst nach `emit` deklariert, der erste synchrone Scan warf einen ReferenceError; außerdem griff der DOM-Fallback, obwohl die ID am Artikel stand und der Replay-Datensatz Millisekunden später kam |
-| 6 | nach Fix (Deklarationsreihenfolge, „bereit" = Datensatz im Cache, Replay-Puffer in der MAIN world) | 14 Items, 0 Hash, erste zwei Items **29 ms nach Installation** (Replay), 13 Videos, 11 `onItemRemoved`, 3 Captions-Chunks (ab 763 ms), 7 STT-Chunks (ab 1.812 ms), 0 Nachzügler; **5 von 7 VTT-Abrufe scheiterten** („Failed to fetch") |
-| 7 | nach VTT-Fallback über alle `urlList`-Varianten | 11 Items, 0 Hash, 16 Chunks (5 Captions, 11 STT), **0 fehlgeschlagene VTT-Abrufe**, Captions-Chunks 13 ms / 201 ms nach `play` (vorab geladen), STT 926–1.983 ms (einmal 3.027), 8 `onItemRemoved`, 0 Nachzügler |
+| 1 | MAIN-world script failed on a missing `documentElement` (CDP injects earlier than `document_start`) → pure DOM fallback | 6 items (hash IDs, handle, text, hashtags), 3 `onItemRemoved`, 0 transcripts — the fallback holds |
+| 2 | MAIN world active (presence flag robust) | 10/10 articles with ID attribute, 7 items (6 real IDs, 1 hash after a 400 ms wait), `onItem` 0 ms and 3.2 s before `play` respectively, 4 `onItemRemoved`; STT silent (OPTIONS probe → preflight rejected) |
+| 3 | probe on GET, wait 1.5 s, 18 videos | 12 items, 0 hash, 12× `createdAt`/display name, 3× `captions` at `onItem`, 2 captions chunks (first 504 ms after `play`), 9 `onItemRemoved`, 0 stragglers; STT silent (800-ms probe timeout at page start-up) |
+| 4 | probe 5 s, negative cache 10 s, 16 key presses (keyboard navigation only took effect 6×) | 7 items, 0 hash, **9 STT chunks for 6 videos**, first chunk 840/855/876/1,413 ms (outliers 3,013 and 4,441 ms), 0 stragglers, 4 `onItemRemoved` |
+| 5 | **Late installation** (harness only 5 s after load, like a `document_idle` content script after the first item response) | **Regression found:** 1 item (hash), then nothing — `activeVideo` was declared with `let` only after `emit`, the first synchronous scan threw a ReferenceError; in addition the DOM fallback kicked in although the ID was on the article and the replay record arrived milliseconds later |
+| 6 | after the fix (declaration order, "ready" = record in the cache, replay buffer in the MAIN world) | 14 items, 0 hash, first two items **29 ms after installation** (replay), 13 videos, 11 `onItemRemoved`, 3 captions chunks (from 763 ms), 7 STT chunks (from 1,812 ms), 0 stragglers; **5 of 7 VTT fetches failed** ("Failed to fetch") |
+| 7 | after the VTT fallback across all `urlList` variants | 11 items, 0 hash, 16 chunks (5 captions, 11 STT), **0 failed VTT fetches**, captions chunks 13 ms / 201 ms after `play` (loaded in advance), STT 926–1,983 ms (once 3,027), 8 `onItemRemoved`, 0 stragglers |
 
-Die STT-Pipeline isoliert (Lauf zwischen 3 und 4): Sonde 404/cors, MP4 2,9 MB in 324 ms, Decode 52 ms
-(17,9 s Audio), POST 10-s-Fenster 918 ms → Text.
+The STT pipeline in isolation (run between 3 and 4): probe 404/cors, MP4 2.9 MB in 324 ms, decode 52 ms
+(17.9 s of audio), POST 10-s window 918 ms → text.
 
-### 14.1 Kaltreview (Codex, gpt-6-astra, nur der Diff) und was daraus wurde
+### 14.1 Cold review (Codex, gpt-6-astra, only the diff) and what became of it
 
-| Befund (alle SUSPECTED, 0 CONFIRMED) | Klassifikation | Behebung |
+| Finding (all SUSPECTED, 0 CONFIRMED) | Classification | Fix |
 |---|---|---|
-| Harness startet vor `documentElement` | gültig | Harness wartet auf `DOMContentLoaded` |
-| `onPlay` umgeht die Wartefrist → Doppel-Item (Hash-ID, dann echte ID) | gültig | `onPlay` emittiert nur „bereite" Artikel; beim Wechsel Hash → echte ID wird die alte ID per `onItemRemoved` zurückgezogen |
-| späterer GraphQL-Datensatz aktualisiert ein per DOM emittiertes X-Item nicht | Trade-off (Glue-Cache, §11) | Entscheidung T-011 für den Glue-Dev |
-| `source` aus der URL statt aus dem tatsächlichen Pfad abgeleitet | gültig | Quelle wird vom jeweiligen Pfad übergeben (`captions` / `stt`) |
-| offen: Bridge-Nachrichten vor `document_idle` gehen verloren | gültig | Replay-Puffer (64 Datensätze) in der MAIN world, Content-Script fordert ihn beim Start an |
-| offen: `records: [null]` würde den Empfänger werfen lassen | gültig | `isBridgeMessage` prüft jeden Datensatz (Test `bridge.test.ts`) |
+| Harness starts before `documentElement` | valid | harness waits for `DOMContentLoaded` |
+| `onPlay` bypasses the waiting period → duplicate item (hash ID, then real ID) | valid | `onPlay` only emits "ready" articles; on the switch hash → real ID the old ID is withdrawn via `onItemRemoved` |
+| a later GraphQL record does not update an X item emitted via the DOM | trade-off (glue cache, §11) | decision T-011 for the glue dev |
+| `source` derived from the URL instead of from the actual path | valid | the source is passed in by the respective path (`captions` / `stt`) |
+| open: bridge messages before `document_idle` are lost | valid | replay buffer (64 records) in the MAIN world, the content script requests it at start |
+| open: `records: [null]` would make the receiver throw | valid | `isBridgeMessage` checks every record (test `bridge.test.ts`) |
 
-**Zweiter Kaltleser (cg-diff-reviewer, Claude, mit Repro-Skripten gegen ein DOM-Fake):** auf dem Patch
-2 × CONFIRMED 🟡 (die `source`-Ableitung und die `onPlay`-Doppelemission — beide oben, beide auf dem Endstand mit
-Repro als behoben belegt), 1 × SUSPECTED (verlorene Bridge-Nachrichten vor `document_idle` — durch den Replay-Puffer
-adressiert, live nur in Lauf 6/7 geprüft, nicht in der echten Extension), und auf einem Zwischenstand 1 × CONFIRMED
-🔴: die `let activeVideo`-Deklaration nach `emit` (Lauf 5) — behoben. Schlussurteil: **REVIEW: CLEAN** für den
-Endstand, mit der Empfehlung, den eingefrorenen End-Diff noch einmal kalt lesen zu lassen (T-012), weil sich der
-Baum während des Reviews bewegte. Offene Fragen des Lesers: Verschachtelung der beiden `SEL.post`-Selektoren
-(T-013; gemessen treffen beide dasselbe Element), die synthetische X-Fixture (bekannt, T-006), der Syndication-Mapper
-ohne Laufzeit-Konsumenten (bewusst: dokumentierter Baustein).
+**Second cold reader (cg-diff-reviewer, Claude, with repro scripts against a DOM fake):** on the patch
+2 × CONFIRMED 🟡 (the `source` derivation and the `onPlay` double emission — both above, both shown as fixed on the final state with
+a repro), 1 × SUSPECTED (lost bridge messages before `document_idle` — addressed by the replay buffer,
+checked live only in runs 6/7, not in the real extension), and on an intermediate state 1 × CONFIRMED
+🔴: the `let activeVideo` declaration after `emit` (run 5) — fixed. Final verdict: **REVIEW: CLEAN** for the
+final state, with the recommendation to have the frozen final diff read cold once more (T-012), because the
+tree moved during the review. Open questions of the reader: nesting of the two `SEL.post` selectors
+(T-013; measured, both match the same element), the synthetic X fixture (known, T-006), the syndication mapper
+without a runtime consumer (deliberate: documented building block).
 
 ---
 
-## 15. Verifikation für den nächsten Dev
+## 15. Verification for the next dev
 
 ```bash
 cd <Fedo-Repo> && npm run check          # ✓ path boundaries OK, dist/main-world.js
 cd <Fedo-Repo> && npm run test:scraper   # tests 17 · pass 17 · fail 0
 ```
 
-Echte Extension (der Schritt, den diese Sitzung nicht tun konnte — Playwright kann in den MCP-Browser keine
-Extension laden):
+Real extension (the step this session could not do — Playwright cannot load an extension into the MCP
+browser):
 
 1. Terminal A: `cd <Fedo-Repo> && bash scraper/companion/whisper-server.sh`
-2. Terminal B: `cd <Fedo-Repo> && npm run dev:scraper`, dann `dist/` in
-   `chrome://extensions` laden (Developer mode → Load unpacked), tiktok.com/foryou öffnen, Konsole öffnen.
-3. Erwartung: `[fedo:scraper] TikTok scraper started (bridge active)`, je Video `NEW VIDEO {id: "tiktok:<Zahl>", …}`
-   **bevor** es läuft, bei Videos mit Sprache innerhalb von ~1–2 s Analyse-Updates (Transcript-Chunks).
-   Steht dort `(DOM fallback only …)`, ist `main-world.js` nicht geladen (Manifest prüfen).
-4. Prüfpunkt CSP/LNA: erscheint in der Konsole ein Fehler mit `127.0.0.1` (blocked / preflight / permission), gilt
-   der Reserveweg aus Abschnitt 12 (STT-POST über den Background-Worker).
-5. X eingeloggt: `scraper/research/console-probes/x-graphql-capture.js` in die Konsole, scrollen; echte Antwort
-   als Fixture sichern und `x-graphql.test.ts` daran anpassen (T-006).
+2. Terminal B: `cd <Fedo-Repo> && npm run dev:scraper`, then load `dist/` in
+   `chrome://extensions` (Developer mode → Load unpacked), open tiktok.com/foryou, open the console.
+3. Expectation: `[fedo:scraper] TikTok scraper started (bridge active)`, per video `NEW VIDEO {id: "tiktok:<number>", …}`
+   **before** it plays, for videos with speech analysis updates (transcript chunks) within ~1–2 s.
+   If it says `(DOM fallback only …)` there, `main-world.js` is not loaded (check the manifest).
+4. Checkpoint CSP/LNA: if an error with `127.0.0.1` (blocked / preflight / permission) appears in the console,
+   the reserve path from section 12 applies (STT POST via the background worker).
+5. X logged in: paste `scraper/research/console-probes/x-graphql-capture.js` into the console, scroll; save a real response
+   as a fixture and adapt `x-graphql.test.ts` to it (T-006).
 
-DevTools-Sonden ohne Extension: `scraper/research/console-probes/README.md`.
-
----
-
-## 16. Offene Punkte und nächste Schritte
-
-(Die T-Nummern in den Abschnitten 14 und 15 stammen aus einer lokalen Aufgabenliste des Autors, die nicht im Repo
-liegt. Die Punkte selbst stehen vollständig hier.)
-
-1. **X eingeloggt verifizieren** (Feed-DOM, HomeTimeline-GraphQL, `video.twimg.com`-CORS) — Sonde liegt bei.
-2. **Echte Extension auf tiktok.com laufen lassen** (CSP/LNA-Punkt, Abschnitt 15).
-3. Entscheidung AI-Dev: `captions` vs. Chunks (Abschnitt 10).
-4. Entscheidung Team: Zusatzfelder (9.2), zuerst `language`, `stats`, `stickerTexts`, `communityNote`.
-5. Kommentar-Abruf einbauen, sobald ein Feld existiert (Code-Skizze in 4.6).
-6. TikTok eingeloggt: sind mehr Untertitel-Spuren da? (unbekannt)
-7. Tastatur-Navigation im Test greift nicht immer (5/30 bzw. 10/16 Fehlversuche) — Test-Harness, nicht Produkt.
-8. Beobachten: einmaliger TikTok-Fehler `a.init is not a function` (Lauf 4).
-9. `SEL.post` in `platforms/tiktok.ts` gegen Verschachtelung absichern (falls `recommend-list-item-container` je ein
-   `article[feed-video]` umschließt, gäbe es zwei Emissionen je Video; gemessen treffen beide Selektoren dasselbe Element).
+DevTools probes without the extension: `scraper/research/console-probes/README.md`.
 
 ---
 
-## 17. Beleg-Block (Zahlen mit zwei Herleitungen)
+## 16. Open points and next steps
 
-- **Frage:** Wie schnell und wie vollständig füllt der Scraper `FeedItem`/`onTranscript` auf TikTok, und was liefern die Plattformen?
-- **Grundgesamtheit:** `tiktok.com/foryou` ausgeloggt (33 Items Stichprobe, 4 Integrationsläufe à 6–12 Videos); `x.com` ausgeloggt; whisper.cpp auf einem M4.
-- **Zeitraum:** 2026-09-21, 12:10–13:20 Uhr.
-- **Einheit:** Millisekunden (Wall-Clock), Anzahl Items/Chunks.
+(The T numbers in sections 14 and 15 come from a local task list of the author that is not in the
+repo. The points themselves are listed here in full.)
 
-| Zahl | Herleitung A | Herleitung B | Abgleich |
+1. **Verify X logged in** (feed DOM, HomeTimeline GraphQL, `video.twimg.com` CORS) — probe is included.
+2. **Run the real extension on tiktok.com** (CSP/LNA point, section 15).
+3. Decision AI dev: `captions` vs. chunks (section 10).
+4. Decision team: additional fields (9.2), first `language`, `stats`, `stickerTexts`, `communityNote`.
+5. Build in comment retrieval as soon as a field exists (code sketch in 4.6).
+6. TikTok logged in: are there more subtitle tracks? (unknown)
+7. Keyboard navigation in the test does not always take effect (5/30 and 10/16 failed attempts respectively) — test harness, not product.
+8. Observe: one-off TikTok error `a.init is not a function` (run 4).
+9. Harden `SEL.post` in `platforms/tiktok.ts` against nesting (if `recommend-list-item-container` ever wraps an
+   `article[feed-video]`, there would be two emissions per video; measured, both selectors match the same element).
+
+---
+
+## 17. Evidence block (numbers with two derivations)
+
+- **Question:** How fast and how completely does the scraper fill `FeedItem`/`onTranscript` on TikTok, and what do the platforms deliver?
+- **Population:** `tiktok.com/foryou` logged out (33-item sample, 4 integration runs of 6–12 videos each); `x.com` logged out; whisper.cpp on an M4.
+- **Period:** 2026-09-21, 12:10–13:20.
+- **Unit:** milliseconds (wall clock), number of items/chunks.
+
+| Number | Derivation A | Derivation B | Reconciliation |
 |---|---|---|---|
-| Neues Video aktiv ~0,3 s nach Taste | Polling `video.paused` alle 25 ms: 21 gültige Werte 261–357 ms, Median 0,29 s | `play`-Event-Listener: 10 Werte 287–418 ms, Median 0,33 s | EINIG auf 0,1 s (0,3 s) |
-| Untertitel-Abdeckung 5/33 | `claInfo.captionInfos.length > 0` → 5 | `subtitleInfos.length > 0` → 5 | EINIG |
-| VTT-Cues 53 | `grep -c -- '-->'` in der Fixture | `parseVtt().length` im Test | EINIG (Test) |
-| Tests 15/15 | `npm run test:scraper` SUMMARY | `grep -c 'test("' scraper/test/*.test.ts` | EINIG (gegenprobe.py) |
-| Item-JSON → DOM ≤ 50 ms | Node-Zeitstempel Body vs. In-Page-Mutation: −14 ms | Resource-Timing `responseEnd` vs. Mutation: +43 ms | EINIG in der Größenordnung (Vorzeichen = Body-Lesezeit in Node) |
-| whisper 10 s ≈ 0,8 s (Server, `-ac 768`) | `curl time_total` 0,805 s / 0,790 s | Encode 0,49 s (`-ac 768`, CLI) + Decode + Overhead ≈ 0,7–0,8 s | EINIG |
-| `onItem` vor `play` | Lauf 3: 1, 1, −1.024 … −3.526 ms | Lauf 4: 0, 0, −1.283 … −3.561 ms | EINIG (Muster identisch) |
-| erster STT-Chunk 0,84–1,4 s | Lauf 4 (4 von 6 Videos) | isolierte Pipeline: 324 + 52 + 918 ms ≈ 1,3 s | EINIG |
-| Kommentare je Seite 15–18 | App-Anfrage (count=20): 18, 18, 18, 17 | minimale URL: 18, 15, 17 | EINIG (Bereich) |
+| New video active ~0.3 s after the key press | polling `video.paused` every 25 ms: 21 valid values 261–357 ms, median 0.29 s | `play` event listener: 10 values 287–418 ms, median 0.33 s | AGREE to 0.1 s (0.3 s) |
+| Subtitle coverage 5/33 | `claInfo.captionInfos.length > 0` → 5 | `subtitleInfos.length > 0` → 5 | AGREE |
+| VTT cues 53 | `grep -c -- '-->'` in the fixture | `parseVtt().length` in the test | AGREE (test) |
+| Tests 15/15 | `npm run test:scraper` SUMMARY | `grep -c 'test("' scraper/test/*.test.ts` | AGREE (gegenprobe.py) |
+| Item JSON → DOM ≤ 50 ms | Node timestamp of the body vs. in-page mutation: −14 ms | Resource Timing `responseEnd` vs. mutation: +43 ms | AGREE in order of magnitude (sign = body read time in Node) |
+| whisper 10 s ≈ 0.8 s (server, `-ac 768`) | `curl time_total` 0.805 s / 0.790 s | encode 0.49 s (`-ac 768`, CLI) + decode + overhead ≈ 0.7–0.8 s | AGREE |
+| `onItem` before `play` | run 3: 1, 1, −1,024 … −3,526 ms | run 4: 0, 0, −1,283 … −3,561 ms | AGREE (pattern identical) |
+| first STT chunk 0.84–1.4 s | run 4 (4 of 6 videos) | isolated pipeline: 324 + 52 + 918 ms ≈ 1.3 s | AGREE |
+| Comments per page 15–18 | app request (count=20): 18, 18, 18, 17 | minimal URL: 18, 15, 17 | AGREE (range) |
 
-**Nicht gemessen:** X eingeloggt (DOM, GraphQL, Video-CORS); TikTok eingeloggt; Langzeitverhalten; echte
-Extension (statt CDP-Simulation); IntersectionObserver-Pfad.
+**Not measured:** X logged in (DOM, GraphQL, video CORS); TikTok logged in; long-term behaviour; real
+extension (instead of the CDP simulation); IntersectionObserver path.
 
-**ERGEBNIS:** `FeedItem` ist auf TikTok mit Bridge in 12 von 12 Fällen vollständig (id, url, author.handle/
-displayName, text, hashtags, media, createdAt) und liegt vor dem Video vor; `captions` bei 3/12 sofort;
-`onTranscript` liefert bei Untertiteln nach ~0,5 s, per lokalem STT nach ~0,8–1,4 s; `verified` und `quotedText`
-bleiben auf TikTok leer. X ist nur über Mapper und Sonden vorbereitet — **live unverifiziert**.
+**RESULT:** `FeedItem` is complete on TikTok with the bridge in 12 of 12 cases (id, url, author.handle/
+displayName, text, hashtags, media, createdAt) and is available before the video; `captions` immediately for 3/12;
+`onTranscript` delivers after ~0.5 s with subtitles, after ~0.8–1.4 s via local STT; `verified` and `quotedText`
+remain empty on TikTok. X is only prepared via mappers and probes — **unverified live**.
 
 ---
 
-## 18. Entwurf für UPDATE.md (erst nach dem Merge eintragen)
+## 18. Draft for UPDATE.md (enter only after the merge)
 
 ```markdown
-## JJJJ-MM-TT · `main @ <hash>` · Scraper · TikTok liest Item-JSON + Untertitel, lokales STT, Transcript-Kanal live
+## YYYY-MM-DD · `main @ <hash>` · Scraper · TikTok reads item JSON + subtitles, local STT, transcript channel live
 
-**Was hat sich geändert:**
-- Neues MAIN-world-Skript `scraper/main-world.ts` (Manifest: zweiter content_scripts-Eintrag, Build: Entry `main-world.js`).
-- TikTok-Adapter neu: echte Video-IDs, Zähler, Erstellzeit, Untertitel (`captions`), `onTranscript` (Captions/STT), `onItemRemoved`.
-- X: GraphQL-/Syndication-Mapper (Fixture-getestet), DOM-Pfad unverändert. Live-Verifikation eingeloggt offen.
-- Tests: `npm run test:scraper` (node:test + tsx, keine neue Abhängigkeit). Doku: `scraper/RESEARCH.md`.
+**What changed:**
+- New MAIN-world script `scraper/main-world.ts` (manifest: second content_scripts entry, build: entry `main-world.js`).
+- TikTok adapter new: real video IDs, counters, creation time, subtitles (`captions`), `onTranscript` (captions/STT), `onItemRemoved`.
+- X: GraphQL/syndication mappers (fixture-tested), DOM path unchanged. Live verification while logged in is open.
+- Tests: `npm run test:scraper` (node:test + tsx, no new dependency). Docs: `scraper/RESEARCH.md`.
 
-**Was musst du tun:**
-- `git pull --rebase origin main` · `npm run build` + in chrome://extensions auf ↻ (Manifest hat sich geändert → Extension neu laden)
-- Für Video-Transkripte: `bash scraper/companion/whisper-server.sh` (braucht `brew install whisper-cpp` + Modell)
+**What you need to do:**
+- `git pull --rebase origin main` · `npm run build` + click ↻ in chrome://extensions (the manifest has changed → reload the extension)
+- For video transcripts: `bash scraper/companion/whisper-server.sh` (needs `brew install whisper-cpp` + model)
 
-**Wichtig zu wissen:**
-- AI-Dev: Bei Videos mit Untertiteln kommt der Text in `item.captions` UND als `onTranscript`-Chunks (RESEARCH.md §10).
-  Empfehlung: bei `kind: "transcript"` das Feld `captions` im State weglassen, wenn `transcript[0].source === "captions"`.
-- Team (Entscheidung Owner 2026-09-21): als erste Contract-Erweiterung die vier optionalen Felder `language`, `stats`,
-  `stickerTexts`, `communityNote` vorschlagen (Typen in RESEARCH.md §9.2). Eigener kleiner PR auf `contracts/`.
-- Glue-Dev (Entscheidung Owner 2026-09-21): Vorschlag — `background.ts` soll den Cache-Eintrag verwerfen, wenn ein
-  zweites `onItem` derselben ID längeren Text bringt; dann kann der Scraper einen per DOM gekürzten X-Langpost nachreichen.
+**Important to know:**
+- AI dev: for videos with subtitles the text arrives in `item.captions` AND as `onTranscript` chunks (RESEARCH.md §10).
+  Recommendation: for `kind: "transcript"` omit the `captions` field in the state if `transcript[0].source === "captions"`.
+- Team (owner decision 2026-09-21): propose the four optional fields `language`, `stats`,
+  `stickerTexts`, `communityNote` as the first contract extension (types in RESEARCH.md §9.2). Separate small PR on `contracts/`.
+- Glue dev (owner decision 2026-09-21): proposal — `background.ts` should discard the cache entry when a
+  second `onItem` with the same ID brings longer text; then the scraper can follow up with an X long post that was truncated via the DOM.
 ```
 
 ---
 
-## Anhang: Quellen
+## Appendix: sources
 
-| Thema | Quelle |
+| Topic | Source |
 |---|---|
-| TikTok Item-JSON, DOM, Kommentare, VTT, MP4 | selbst gemessen 2026-09-21 (Playwright, ausgeloggt) |
-| X Syndication-API | selbst gemessen 2026-09-21; Token-Formel wie in X' Embed-Code |
-| X GraphQL-Entitätsform | github.com/the-convocation/twitter-scraper, `src/timeline-v1.ts`, `src/timeline-v2.ts` (abgerufen 2026-09-21) — nicht selbst beobachtet |
-| whisper.cpp | lokal gemessen (`whisper-cli`, `whisper-server` 1.x via Homebrew, Metal) |
-| Chrome MV3 `content_scripts.world` | developer.chrome.com/docs/extensions/reference/manifest/content-scripts (Stand Doku) — nicht neu abgerufen |
-| Erster Test | `DOKUMENTATION.md` (2026-09-21, Vor-Sitzung) |
+| TikTok item JSON, DOM, comments, VTT, MP4 | measured ourselves 2026-09-21 (Playwright, logged out) |
+| X syndication API | measured ourselves 2026-09-21; token formula as in X's embed code |
+| X GraphQL entity shape | github.com/the-convocation/twitter-scraper, `src/timeline-v1.ts`, `src/timeline-v2.ts` (retrieved 2026-09-21) — not observed ourselves |
+| whisper.cpp | measured locally (`whisper-cli`, `whisper-server` 1.x via Homebrew, Metal) |
+| Chrome MV3 `content_scripts.world` | developer.chrome.com/docs/extensions/reference/manifest/content-scripts (as of the docs) — not retrieved again |
+| First test | `DOKUMENTATION.md` (2026-09-21, pre-session) |
