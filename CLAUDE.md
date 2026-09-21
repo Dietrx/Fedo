@@ -16,3 +16,5 @@ Drei Devs arbeiten parallel. **Die vollständige Anleitung steht in `START_HERE.
 - `extension/src/` (Glue) bleibt dünn. Nur anfassen, wenn es wirklich nötig ist, und dann Bescheid sagen.
 - Vor jedem Commit: `npm run check` (Typecheck + Boundaries + Build) muss grün sein.
 - Branches: `scraper/...`, `ai/...`, `ui/...`. Kleine PRs, oft mergen.
+- Nach dem Merge auf `main`: oben in `UPDATE.md` einen Eintrag ergänzen (was geändert,
+  was müssen die anderen tun). Vorlage steht auskommentiert am Ende der Datei.

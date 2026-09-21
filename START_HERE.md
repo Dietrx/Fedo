@@ -117,6 +117,8 @@ Nach jedem Rebuild in `chrome://extensions` auf ↻ klicken und den Tab neu lade
 - Kleine PRs, **alle 1–2 Stunden mergen**, damit der echte Zusammenbau auf x.com früh getestet wird
 - Vorher `git pull --rebase origin main`
 - Weil jeder nur in seinem Ordner arbeitet, gibt es praktisch keine Merge-Konflikte
+- **Nach dem Merge auf `main`: oben in `UPDATE.md` einen Eintrag ergänzen** (was geändert,
+  was müssen die anderen tun). So sieht jeder auf einen Blick, was der aktuellste Stand ist.
 
 ---
 
