@@ -10,6 +10,33 @@
 
 ---
 
+## 2026-09-21 · `main @ ec9b14b` · UI (+2 Zeilen Glue) · Analyse-Dashboard, Per-Post-Log, Contract-Abgleich
+
+**Was hat sich geändert:**
+- **Neue Extension-Seite `dashboard.html`** (Popup → „Open dashboard"): Zeitfenster Today / 7 days / All, Readouts (analysiert, mit Signalen,
+  Heavy use, AI slop) mit 7-Tage-Sparkline, Techniken-Ranking + Kategorie-Verteilung, Quellen mit den meisten Signalen, Post-Liste mit
+  Suche, Filtern (Plattform / Level / nur Slop), Klick-Filter auf Technik oder Quelle, aufklappbaren Details, „Open post ↗", Export JSON, Reset.
+- **`ui/log.ts`:** das Overlay schreibt pro fertig analysiertem Post einen Eintrag nach `chrome.storage.local` (`fedo.ui.log`, max. 500).
+  Autor/Text werden **best effort aus dem `article`-DOM** gelesen (X: `User-Name` / `tweetText`, TikTok: `data-e2e`), weil `render()` keinen `FeedItem` bekommt.
+- **Glue (2 Zeilen, `scripts/build.mjs`):** `dashboard.html` kopieren + `ui/dashboard/dashboard.ts` → `dist/dashboard.js` bündeln. Sonst nichts außerhalb `ui/`.
+- **Adaptierbarkeit:** unbekannte Signal-Gruppen rendern neutral statt zu brechen. `npx tsx ui/dev/contract-coverage.ts` prüft die UI gegen
+  `contracts/` (Labels, Gruppen, Level, Fixtures, `OverlayRenderer`, Messages) und listet, welche Contract-Felder die UI noch nicht liest.
+- Per-Post-Panel zeigt jetzt `source` (mock / jev / …) neben Latenz – praktisch beim Live-Test.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, in chrome://extensions auf ↻, dann auf x.com scrollen und im Popup „Open dashboard".
+- **Felix, bitte testen, ob das so passt:** (1) `scripts/build.mjs`-Ergänzung okay? (2) Läuft das Dashboard mit echten Analysen sauber
+  (Autor/Text richtig aus dem DOM)? (3) **Contract-Vorschlag, rein additiv:** `OverlayRenderer.render(itemId, anchor, state, item?: FeedItem)`
+  als optionaler 4. Parameter – der Glue hat den `FeedItem` in `onItem` ohnehin in der Hand. Dann sind Autor, Text, `isRepost`, `createdAt`,
+  `quotedText` im Dashboard exakt statt aus dem DOM geraten. Die UI läuft mit und ohne den Parameter.
+- **AI-Dev:** nichts zu tun; Dashboard nutzt `overall`, `signals[].evidence`, `explanation`, `timeline`, `source`.
+- **Scraper-Dev:** `onItemRemoved(itemId)` weiterhin rufen; das Log bleibt davon unberührt (es zählt nur fertige Analysen).
+
+**Wichtig zu wissen:** Außerhalb der Extension (Datei direkt öffnen) zeigt `dashboard.html` Demo-Daten – gut zum Review, nicht echt.
+Post-Links ins Dashboard werden auf `http(s)` geprüft (Extension-Seite = privilegiert).
+
+---
+
 ## 2026-09-21 · `main @ ba4deab` · Scraper · TikTok liest Item-JSON + Untertitel, lokales Speech-to-Text, Transcript-Kanal live
 
 **Was hat sich geändert:**
