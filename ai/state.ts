@@ -56,3 +56,23 @@ export function buildSegments(input: AnalysisInput): Segment[] {
   if (alt) segments.push({ source: "alt", text: alt, weight: 0.5 });
   return segments.filter((s) => s.text.trim());
 }
+
+/**
+ * Structured state for Jev. TypeSafe recommends an object with descriptive field names over one long
+ * string, so the model can tell the post text from captions or spoken text.
+ * The quoted post is deliberately left out: Jev scores it as if the author had said it (see fuse() in jev.ts).
+ */
+export function buildStateObject(input: AnalysisInput): Record<string, unknown> {
+  const { item } = input;
+  const state: Record<string, unknown> = {
+    platform: item.platform,
+    author: `@${item.author.handle}${item.author.verified ? " (verified)" : ""}`,
+    post_text: item.text,
+  };
+  if (item.hashtags.length) state.hashtags = item.hashtags.map((h) => "#" + h);
+  if (item.captions) state.video_captions = item.captions;
+  if (input.kind === "transcript") state.spoken_text = input.transcript.map((c) => c.text).join(" ");
+  const alt = item.media.map((m) => m.altText).filter(Boolean);
+  if (alt.length) state.image_descriptions = alt;
+  return state;
+}
