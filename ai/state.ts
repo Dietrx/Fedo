@@ -26,3 +26,53 @@ export function allText(input: AnalysisInput): string {
   const spoken = input.kind === "transcript" ? input.transcript.map((c) => c.text).join(" ") : "";
   return [item.text, item.quotedText, item.captions, spoken].filter(Boolean).join(" ");
 }
+
+/**
+ * The same raw data, split by where it came from. The scoring engine weighs each source:
+ * the author's own words count fully, a quoted post or an image alt text count less
+ * (quoting something is not the same as saying it).
+ */
+export interface Segment {
+  source: "text" | "captions" | "spoken" | "hashtags" | "quoted" | "alt";
+  text: string;
+  weight: number;
+}
+
+export function buildSegments(input: AnalysisInput): Segment[] {
+  const { item } = input;
+  const segments: Segment[] = [{ source: "text", text: item.text, weight: 1 }];
+  if (item.captions) segments.push({ source: "captions", text: item.captions, weight: 1 });
+  if (input.kind === "transcript") {
+    segments.push({ source: "spoken", text: input.transcript.map((c) => c.text).join(" "), weight: 1 });
+  }
+  if (item.hashtags.length) {
+    // The scraper usually leaves hashtags inside `text` too → only add the ones that are not there already.
+    const lower = item.text.toLowerCase();
+    const extra = item.hashtags.filter((h) => !lower.includes("#" + h.toLowerCase()));
+    if (extra.length) segments.push({ source: "hashtags", text: extra.map((h) => "#" + h).join(" "), weight: 0.8 });
+  }
+  if (item.quotedText) segments.push({ source: "quoted", text: item.quotedText, weight: 0.6 });
+  const alt = item.media.map((m) => m.altText).filter(Boolean).join(". ");
+  if (alt) segments.push({ source: "alt", text: alt, weight: 0.5 });
+  return segments.filter((s) => s.text.trim());
+}
+
+/**
+ * Structured state for Jev. TypeSafe recommends an object with descriptive field names over one long
+ * string, so the model can tell the post text from captions or spoken text.
+ * The quoted post is deliberately left out: Jev scores it as if the author had said it (see fuse() in jev.ts).
+ */
+export function buildStateObject(input: AnalysisInput): Record<string, unknown> {
+  const { item } = input;
+  const state: Record<string, unknown> = {
+    platform: item.platform,
+    author: `@${item.author.handle}${item.author.verified ? " (verified)" : ""}`,
+    post_text: item.text,
+  };
+  if (item.hashtags.length) state.hashtags = item.hashtags.map((h) => "#" + h);
+  if (item.captions) state.video_captions = item.captions;
+  if (input.kind === "transcript") state.spoken_text = input.transcript.map((c) => c.text).join(" ");
+  const alt = item.media.map((m) => m.altText).filter(Boolean);
+  if (alt.length) state.image_descriptions = alt;
+  return state;
+}

@@ -10,6 +10,158 @@
 
 ---
 
+## 2026-09-21 · `ai/irony-and-memes` · AI · Ironie, Satire und Memes werden erkannt
+
+**Was hat sich geändert:**
+- Getestet an 183 weiteren echten Posts (The Onion, Postillon, dril, Meme-/Satire-/Rant-Hashtags). Problem: Jev las alles wörtlich
+  („like an insane animal“ → Dehumanizing, Satire-Schlagzeilen → Sensationalism).
+- Jetzt drei Kontextfragen im selben Request (keine Zusatz-Latenz): Humor? Sarkasmus? Reale Gruppe als Ziel?
+  - Humor ohne reale Zielgruppe → Signale gedämpft (Onion, Postillon, Katzen-Memes landen auf `none`).
+  - Humor auf Kosten einer realen Gruppe → NICHT gedämpft, aber höchstens `medium`. „War nur Spaß“-Hetze erkennt Jev gar nicht erst als Humor → bleibt `high`.
+  - Sarkasmus → Scores bleiben (ist trotzdem Persuasion), die Erklärung beginnt mit „The author uses sarcasm…“.
+- Ergebnis Humor-Sample: none 89 → 121, medium 23 → 14. News-Sample ohne Regression. Evals 15/15 lokal, 20/20 Jev.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, ↻
+- **UI-Dev:** `explanation` kann jetzt mit einem Ton-Hinweis beginnen („This reads as humor or satire…“) → gut sichtbar im „Why?“-Panel.
+
+**Wichtig zu wissen:** Ton-Erkennung gibt es nur im Jev-Modus. Die lokale Fallback-Engine liest weiter wörtlich.
+
+---
+
+## 2026-09-21 · `main @ e6fc253` · UI · Design-System, vier Themes, Slop-Cover, Live-Tracker, Dashboard-Popup
+
+**Was hat sich geändert:**
+- **Im Feed nur noch eine ruhige Zeile pro Post** (28 px, kein Kasten): `LIVE · bis zu 3 Labels mit Kategorie-Punkt · +N · Details ›`.
+  Darüber eine 2-px-Fortschrittslinie, die sich füllt, während die KI arbeitet. Klick auf die Zeile öffnet das Per-Post-Dashboard
+  (Erklärung, `overall`, Meter mit Evidence, bei Videos die `timeline` als Log mit Zeitstempeln).
+- **Farbe = Kategorie** (political violett · rhetoric orange · credibility amber · synthetic teal, aus `SIGNALS[key].group`),
+  **nie „schlecht"**. Rot gibt es nur für LIVE und den Pending-Punkt.
+- **Vier Themes:** light / dark (folgt automatisch dem Host) + je eine farbenblind-sichere Variante (Okabe-Ito + Formsymbole ◆ ▲ ● ■).
+- **AI-Slop-Cover:** `possible_ai_slop` oder `synthetic_media` ≥ 85 % → voll-breites Cover über dem Post, per × wegklickbar.
+- **Popup = Dashboard:** An/Aus, Readout (analysiert / mit Signalen / Verteilung nach Gruppe), Appearance (System · Light · Dark),
+  Colour-blind-Schalter, Slop-Cover-Schalter, Sensitivität, „Open x.com". Settings gelten **sofort**, kein Feed-Reload.
+- Neue Dateien in `ui/`: `theme.ts` (Tokens), `prefs.ts` (UI-eigene Prefs + Zähler in `chrome.storage.local` unter `fedo.ui.*`).
+- **Kein Contract, kein Glue geändert.** Design-System (Tokens, Previews, Guidelines): https://claude.ai/artifact/3yqsB8zBs3oKGnTpt4y11Y
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, in chrome://extensions auf ↻
+- **AI-Dev:** `evidence` pro Signal, `explanation` und `timeline` sind das, was das Dashboard und das Live-Log gut machen – bitte weiter befüllen.
+  `possible_ai_slop` ≥ 0.85 löst jetzt das Cover aus: bitte nur bei wirklich klaren Fällen so hoch scoren.
+- **Scraper-Dev:** der Anker (`article`) bekommt `position: relative`, wenn er `static` ist (für das Cover). `onItemRemoved` bitte rufen,
+  damit Overlay + Cover mit dem Post verschwinden.
+
+**Wichtig zu wissen:** `npm run dev:ui` hat jetzt Theme-Dropdown, Schwellwert-Slider, Live-Simulation und einen Slop-Testpost.
+Das Cover ist standardmäßig an (Popup → „Cover AI slop posts").
+
+---
+
+## 2026-09-21 · `ai/real-feed-tuning` · AI · An 168 echten Posts getestet und nachgeschärft
+
+**Was hat sich geändert:**
+- Jev bewertet jetzt zusätzlich jeden Satz einzeln (parallel, keine Zusatz-Latenz): Der Satz mit dem höchsten Score wird das
+  `evidence`-Zitat. Treffer ohne Zitat: vorher ~85 %, jetzt ~10 %. Signale, die sich in keinem Satz wiederfinden, werden gedämpft.
+- Weniger Fehlalarme: Hashtag-only-Posts, Kursticker, neutrale Nachrichtenmeldungen. Verteilung auf echtem Feed:
+  61 % none, 27 % low, 11 % medium, 1 % high. Latenz p50 ~0,4 s.
+- `evidence` kann jetzt ein ganzer Satz sein (max. 90 Zeichen, mit „…“), nicht mehr nur 2–4 Wörter.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, ↻
+- **UI-Dev:** (1) `evidence` braucht Platz für ~90 Zeichen / Umbruch. (2) Bei stark aufgeladenen Posts kommen 5–8 Signale ≥ 50 %.
+  Empfehlung: die 3–4 stärksten als Chips, Rest hinter „+n“. Mehrere Signale können dasselbe Zitat haben → nur einmal anzeigen.
+  (3) `result.timeline` + `result.overall` kommen fertig aus der AI, müssen nicht aus Score-Sprüngen nachgebaut werden.
+
+---
+
+## 2026-09-21 · `ai/live-video` · AI · Live-Video: gedrosselte Analyse + Timeline
+
+**Was hat sich geändert:**
+- Transcript-Updates werden in `ai/` pro Video gebündelt: max. 1 Request gleichzeitig / alle 750 ms, immer nur das neueste
+  Transkript. Der Glue darf weiter bei JEDEM Chunk `analyze` rufen, Ergebnisse kommen nie in falscher Reihenfolge an.
+- Jedes Video-Ergebnis hat `timeline` (siehe Contract-Eintrag) und `partial` (`true`, solange der letzte Chunk nicht final ist).
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, ↻
+- **Scraper-Dev:** `sink.onTranscript({ itemId, text, isFinal, t, source })` liefern, pro fertigem Satz `isFinal: true`,
+  `t` = Sekunden seit Videostart. Interim-Chunks (`isFinal: false`) sind erlaubt und billig. So sieht es aus: `npx tsx ai/dev/run-live.ts`
+- **UI-Dev:** `result.timeline` + `result.partial` für die Live-Ansicht.
+
+**Wichtig zu wissen:** Speech-to-Text für Videos OHNE Untertitel ist noch offen. Das braucht Tab-Audio (`chrome.tabCapture`)
+und gehört damit in Glue/Scraper, nicht in `ai/`. Mit TikTok-Captions funktioniert der Live-Pfad schon komplett.
+
+---
+
+## 2026-09-21 · `contracts/timeline` · Contracts (AI → UI) · Neues optionales Feld `AnalysisResult.timeline` für Videos
+
+**Was hat sich geändert:**
+- `contracts/types.ts`: `AnalysisResult.timeline?: TimelineEvent[]` mit `{ t, key, score, evidence? }`
+  = erkannte Techniken im gesprochenen Text mit Zeitstempel (Sekunden), chronologisch. Wächst, während das Video läuft.
+- `contracts/fixtures.ts`: Ergebnis zu `tiktok:2001` hat eine Beispiel-Timeline.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`
+- **UI-Dev:** für die Live-Video-Ansicht nutzbar („00:04 ⚠ Fear framing“): `SIGNALS[event.key].label` + `event.t` formatieren.
+  Feld ist optional → bei Posts und bei `undefined` nichts anzeigen.
+- Scraper-Dev: `TranscriptChunk.t` (Sekunden seit Videostart) sauber setzen, daraus entstehen die Zeitstempel.
+
+**Wichtig zu wissen:** Kein Breaking Change (Feld ist optional).
+
+---
+
+## 2026-09-21 · `ai/llm-openrouter` · AI · Echte Analyse mit Jev (TypeSafe) über OpenRouter
+
+**Was hat sich geändert:**
+- `ai/jev.ts` spricht jetzt die echte Jev-API (OpenRouter Decisions API): eine Ja/Nein-Frage pro Signal → Wahrscheinlichkeit.
+  ~0,3–1 s pro Post. Jev-Scores werden mit der lokalen Engine fusioniert (weniger Fehlalarme), Evidence-Zitate kommen lokal.
+- Fehler, Timeout oder leeres Guthaben → automatisch Ergebnis der lokalen Engine (`source: "mock"`), nie ein Error im Feed.
+- Alternative: beliebiges Chat-Modell, wenn `JEV_API_URL` auf `/chat/completions` endet (`ai/llm.ts`).
+
+**Was musst du tun:**
+- `git pull --rebase origin main`
+- Für echte Analyse in `.env` (nie committen!): `FEDO_ANALYZER=jev`, `JEV_API_URL=https://openrouter.ai/api/alpha/decisions`,
+  `JEV_API_KEY=<OpenRouter-Key, beim AI-Dev erfragen>` → `npm run build` → in chrome://extensions auf ↻
+- Ohne `.env` läuft alles wie bisher mit der lokalen Engine.
+
+**Wichtig zu wissen:** Der Key wird beim Build in `dist/background.js` eingebettet → `dist/` niemals weitergeben oder committen
+(ist in `.gitignore`). Im Jev-Modus gehen Post-Texte an OpenRouter/TypeSafe.
+
+---
+
+## 2026-09-21 · `ai/local-engine` · AI · Lokale Scoring-Engine ersetzt die Keyword-Heuristik
+
+**Was hat sich geändert:**
+- `ai/` bewertet Posts jetzt mit einer echten lokalen Engine (EN + DE): gewichtete Formulierungen pro Signal,
+  Stilmerkmale, Kontextregeln, `evidence`-Zitat pro Signal, `explanation` und `overall` (Gesamtstufe).
+- Modus `mock` = diese Engine (offline, kein API-Key). Modus `jev` nutzt sie für Evidence und als Fallback bei API-Fehlern.
+- `callJev()` ist weiterhin ein Skelett (TypeSafe-Format fehlt noch).
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, `npm run build`, in chrome://extensions auf ↻
+- Falsch bewerteter Post gesehen? Text an den AI-Dev schicken → wird Testfall in `ai/dev/cases.ts`.
+
+**Wichtig zu wissen:** Ergebnisse haben weiterhin `source: "mock"`, sind aber keine Platzhalter mehr.
+Die simulierte Latenz ist weg → `pending` ist im echten Feed nur noch sehr kurz sichtbar.
+
+---
+
+## 2026-09-21 · `contracts/overall-intensity` · Contracts (AI → UI) · Neues optionales Feld `AnalysisResult.overall`
+
+**Was hat sich geändert:**
+- `contracts/types.ts`: `AnalysisResult.overall?: { level: "none" | "low" | "medium" | "high"; score: number }`
+  = alle Signale zu EINER Stufe pro Post zusammengefasst (Typen `IntensityLevel`, `OverallIntensity`).
+- `contracts/fixtures.ts`: alle `FIXTURE_RESULTS` haben Beispielwerte für `overall`.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`
+- **UI-Dev:** `result.overall` als Badge pro Post darstellen (z. B. Farbe nach `level`). Das Feld ist
+  optional → bei `undefined` einfach kein Badge zeigen. Im Playground sind die Werte über die Fixtures schon da.
+- Scraper-Dev: nichts.
+
+**Wichtig zu wissen:** Kein Breaking Change (Feld ist optional). Wording: Die Stufe beschreibt, wie stark
+Überzeugungs-TECHNIKEN eingesetzt werden, nicht ob etwas wahr oder „gefährlich“ ist. `political_content` allein ergibt immer `none`.
+
+---
+
 ## 2026-09-21 · `main @ e9a7de5` · Alle Paths · Grundgerüst steht (v0.1.0)
 
 Das Projekt ist aufgesetzt. Alle drei Paths können **ab sofort parallel und unabhängig**

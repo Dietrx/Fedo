@@ -1,21 +1,109 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
-    <title>Fedo</title>
+    <title>Fedo Shield</title>
     <style>
-      body { margin: 0; width: 260px; padding: 16px; font: 13px/1.4 system-ui, sans-serif; background: #15181c; color: #e7e9ea; }
-      h1 { font-size: 16px; margin: 0 0 12px; }
-      label { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; }
-      input[type="range"] { width: 110px; }
-      .hint { color: #8b98a5; font-size: 12px; margin-top: 12px; }
+      /* Theme variables are injected by popup.js (ui/theme.ts) so this file only uses tokens. */
+      * { box-sizing: border-box; }
+      body { margin: 0; width: 320px; padding: 20px 16px 16px; font: 13px/18px var(--font-sans); color: var(--ink);
+             background: var(--ground); background-image: radial-gradient(var(--hairline) 1px, transparent 1px); background-size: 24px 24px;
+             display: grid; gap: 12px; }
+      .hd { display: flex; align-items: center; justify-content: space-between; }
+      h1 { margin: 0; font: 700 28px/32px var(--font-display); letter-spacing: -.02em; }
+
+      /* switch */
+      .sw { position: relative; width: 44px; height: 26px; flex: none; }
+      .sw input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+      .sw span { position: absolute; inset: 0; border-radius: var(--radius-pill); background: var(--surface-sunken); border: 1px solid var(--hairline); transition: background .15s; }
+      .sw span::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); border: 1px solid var(--hairline); transition: transform .15s; }
+      .sw input:checked + span { background: var(--action); border-color: var(--action); }
+      .sw input:checked + span::after { transform: translateX(18px); background: var(--on-action); border-color: var(--action); }
+      .sw input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+      .card { position: relative; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 16px; display: grid; gap: 12px; }
+      .c { position: absolute; width: 12px; height: 12px; border: 1.5px solid var(--ink); }
+      .c.tl { top: 6px; left: 6px; border-right: 0; border-bottom: 0; border-top-left-radius: 4px; }
+      .c.tr { top: 6px; right: 6px; border-left: 0; border-bottom: 0; border-top-right-radius: 4px; }
+      .c.bl { bottom: 6px; left: 6px; border-right: 0; border-top: 0; border-bottom-left-radius: 4px; }
+      .c.br { bottom: 6px; right: 6px; border-left: 0; border-top: 0; border-bottom-right-radius: 4px; }
+      .micro { font: 600 11px/14px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); }
+      .readout { font: 700 28px/32px var(--font-mono); letter-spacing: -.02em; }
+      .sub { color: var(--ink-muted); }
+      .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .stats h2 { margin: 0 0 4px; }
+      .dist { display: flex; height: 8px; border-radius: var(--radius-pill); overflow: hidden; background: var(--surface-sunken); }
+      .dist i { display: block; height: 100%; }
+      .dist [data-group="political"] { background: var(--cat-political); } .dist [data-group="rhetoric"] { background: var(--cat-rhetoric); }
+      .dist [data-group="credibility"] { background: var(--cat-credibility); } .dist [data-group="synthetic"] { background: var(--cat-synthetic); }
+      .leg { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 500 11px/14px var(--font-sans); color: var(--ink-muted); margin-top: -4px; }
+      .leg i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; font-style: normal; }
+      .leg [data-group="political"] i { background: var(--cat-political); } .leg [data-group="rhetoric"] i { background: var(--cat-rhetoric); }
+      .leg [data-group="credibility"] i { background: var(--cat-credibility); } .leg [data-group="synthetic"] i { background: var(--cat-synthetic); }
+      [data-theme$="-cb"] .leg i { width: auto; height: auto; border-radius: 0; background: none !important; font-size: 10px; }
+      [data-theme$="-cb"] .leg [data-group="political"] i { color: var(--cat-political-ink); } [data-theme$="-cb"] .leg [data-group="rhetoric"] i { color: var(--cat-rhetoric-ink); }
+      [data-theme$="-cb"] .leg [data-group="credibility"] i { color: var(--cat-credibility-ink); } [data-theme$="-cb"] .leg [data-group="synthetic"] i { color: var(--cat-synthetic-ink); }
+
+      .line { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 500; }
+      .seg { display: inline-flex; height: 36px; padding: 3px; gap: 3px; background: var(--surface-sunken); border-radius: var(--radius-pill); }
+      .seg label { position: relative; display: inline-flex; align-items: center; padding: 0 12px; border-radius: var(--radius-pill); font: 600 13px/18px var(--font-sans); color: var(--ink-muted); cursor: pointer; }
+      .seg input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+      .seg label:has(input:checked) { background: var(--action); color: var(--on-action); }
+      .seg label:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+      input[type="range"] { -webkit-appearance: none; width: 100%; height: 6px; margin: 4px 0 0; border-radius: var(--radius-pill); background:
+        linear-gradient(var(--action), var(--action)) 0 0 / var(--fill, 60%) 100% no-repeat,
+        linear-gradient(var(--hairline), var(--hairline)) 25% 0/1px 100% no-repeat, linear-gradient(var(--hairline), var(--hairline)) 50% 0/1px 100% no-repeat,
+        linear-gradient(var(--hairline), var(--hairline)) 75% 0/1px 100% no-repeat, var(--surface-sunken); }
+      input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); border: 2px solid var(--action); cursor: pointer; }
+      input[type="range"]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+      .ends { display: flex; justify-content: space-between; margin-top: -6px; }
+
+      .btn { height: 44px; border: 0; border-radius: var(--radius-pill); font: 600 14px/20px var(--font-sans); cursor: pointer; transition: box-shadow .15s; }
+      .btn.primary { background: var(--action); color: var(--on-action); width: 100%; }
+      .btn.primary:hover { box-shadow: var(--glow-action); }
+      .btn.ghost { height: 24px; padding: 0; background: none; color: var(--ink-muted); font-size: 12px; }
+      .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+      .foot { text-align: center; }
     </style>
   </head>
   <body>
-    <h1>🛡️ Fedo Shield</h1>
-    <label>Enabled <input id="enabled" type="checkbox" /></label>
-    <label>Sensitivity <input id="minScore" type="range" min="0.3" max="0.9" step="0.05" /></label>
-    <p class="hint">Reload the feed tab after changing settings.</p>
+    <div class="hd">
+      <h1>Fedo Shield</h1>
+      <label class="sw" title="Enabled"><input id="enabled" type="checkbox" /><span></span></label>
+    </div>
+
+    <section class="card">
+      <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+      <div class="stats">
+        <div><h2 class="micro">Analyzed</h2><div class="readout" id="analyzed">0</div><div class="sub">posts so far</div></div>
+        <div><h2 class="micro">With signals</h2><div class="readout" id="withSignals">0</div><div class="sub" id="ratio">0% of feed</div></div>
+      </div>
+      <div class="dist" id="dist"></div>
+      <div class="leg" id="legend"></div>
+      <div class="line"><span class="sub" style="font-weight:400">Counts, never a score for your feed.</span><button class="btn ghost" id="reset">Reset</button></div>
+    </section>
+
+    <section class="card">
+      <div class="line"><span>Appearance</span>
+        <div class="seg" role="radiogroup" aria-label="Appearance">
+          <label><input type="radio" name="theme" value="system" />System</label>
+          <label><input type="radio" name="theme" value="light" />Light</label>
+          <label><input type="radio" name="theme" value="dark" />Dark</label>
+        </div>
+      </div>
+      <div class="line"><span>Colour-blind safe colours</span><label class="sw"><input id="colorBlind" type="checkbox" /><span></span></label></div>
+      <div class="line"><span>Cover AI slop posts <span class="sub" style="font-weight:400">(≥ 85%)</span></span><label class="sw"><input id="slopCover" type="checkbox" /><span></span></label></div>
+    </section>
+
+    <section class="card">
+      <div class="line"><span>Sensitivity</span><span class="sub" id="threshold">shows ≥ 50%</span></div>
+      <input id="minScore" type="range" min="0.3" max="0.9" step="0.05" aria-label="Sensitivity" />
+      <div class="ends"><span class="micro">Fewer</span><span class="micro">More</span></div>
+    </section>
+
+    <button class="btn primary" id="open">Open x.com</button>
+    <div class="foot micro">Techniques, not opinions</div>
     <script src="popup.js"></script>
   </body>
 </html>

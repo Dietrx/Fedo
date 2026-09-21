@@ -52,6 +52,7 @@ export const FIXTURE_ITEMS: FeedItem[] = [
 export const FIXTURE_RESULTS: AnalysisResult[] = [
   {
     itemId: "x:1001",
+    overall: { level: "high", score: 0.98 },
     source: "mock",
     latencyMs: 180,
     explanation: "This post uses fear-based language and divides people into opposing groups. It states a statistic without a source.",
@@ -64,9 +65,10 @@ export const FIXTURE_RESULTS: AnalysisResult[] = [
       { key: "conspiracy_framing", score: 0.66, evidence: "the media won't tell you" },
     ],
   },
-  { itemId: "x:1002", source: "mock", latencyMs: 95, signals: [{ key: "political_content", score: 0.02 }] },
+  { itemId: "x:1002", overall: { level: "none", score: 0 }, source: "mock", latencyMs: 95, signals: [{ key: "political_content", score: 0.02 }] },
   {
     itemId: "x:1003",
+    overall: { level: "medium", score: 0.5 },
     source: "mock",
     latencyMs: 120,
     explanation: "This post shows patterns typical for mass-produced content and asks for engagement.",
@@ -77,6 +79,12 @@ export const FIXTURE_RESULTS: AnalysisResult[] = [
   },
   {
     itemId: "tiktok:2001",
+    overall: { level: "medium", score: 0.79 },
+    timeline: [
+      { t: 2, key: "conspiracy_framing", score: 0.9, evidence: "what the government is hiding" },
+      { t: 5, key: "conspiracy_framing", score: 0.82, evidence: "lying to you" },
+      { t: 7, key: "us_vs_them", score: 0.71, evidence: "time we fight back" },
+    ],
     source: "mock",
     latencyMs: 240,
     partial: true,

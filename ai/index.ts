@@ -6,13 +6,22 @@
 import type { Analyzer, AnalyzerConfig } from "@contracts";
 import { createMockAnalyzer } from "./mock";
 import { createJevAnalyzer } from "./jev";
+import { withLiveVideo } from "./live";
+import { createLlmAnalyzer, isChatCompletionsUrl } from "./llm";
 
+/** Every analyzer gets the live-video wrapper: throttling + coalescing of transcript updates, plus the timeline. */
 export function createAnalyzer(config: AnalyzerConfig): Analyzer {
+  return withLiveVideo(createBaseAnalyzer(config));
+}
+
+function createBaseAnalyzer(config: AnalyzerConfig): Analyzer {
   if (config.mode === "jev") {
     if (!config.jevApiUrl || !config.jevApiKey) {
       console.warn("[fedo:ai] Jev selected but JEV_API_URL / JEV_API_KEY missing → falling back to mock");
       return createMockAnalyzer();
     }
+    // An OpenAI-compatible endpoint (OpenRouter, …) in JEV_API_URL → generic LLM analyzer instead of the Jev client.
+    if (isChatCompletionsUrl(config.jevApiUrl)) return createLlmAnalyzer(config.jevApiUrl, config.jevApiKey);
     return createJevAnalyzer(config.jevApiUrl, config.jevApiKey);
   }
   return createMockAnalyzer();
