@@ -11,6 +11,7 @@
 import { SIGNAL_KEYS, SIGNALS, type Analyzer, type Signal, type SignalKey } from "@contracts";
 import { buildState } from "./state";
 import { buildExplanation } from "./explain";
+import { overall } from "./assess";
 import { scoreSignals } from "./engine";
 import { analyzeLocally, isPartial } from "./mock";
 
@@ -44,6 +45,7 @@ export function createJevAnalyzer(apiUrl: string, apiKey: string): Analyzer {
       return {
         itemId: input.item.id,
         signals,
+        overall: overall(signals),
         explanation: buildExplanation(signals, input.kind === "transcript"),
         partial: isPartial(input),
         source: "jev",

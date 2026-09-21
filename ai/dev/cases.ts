@@ -2,8 +2,7 @@
  * Regression cases for the local engine: what MUST fire, what must NOT, and the expected
  * intensity level. Run with `npx tsx ai/dev/eval.ts`. Add a case whenever a post is scored wrongly.
  */
-import type { FeedItem, SignalKey } from "@contracts";
-import type { IntensityLevel } from "../assess";
+import type { FeedItem, IntensityLevel, SignalKey } from "@contracts";
 
 export interface Case {
   item: FeedItem;

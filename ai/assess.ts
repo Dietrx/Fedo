@@ -9,14 +9,9 @@
  * Wording principle: this measures how heavily persuasion TECHNIQUES are used —
  * it says nothing about whether the message is true or what the author intends.
  */
-import type { Signal, SignalKey } from "@contracts";
+import type { IntensityLevel, OverallIntensity, Signal, SignalKey } from "@contracts";
 
-export type IntensityLevel = "none" | "low" | "medium" | "high";
-
-export interface Assessment {
-  level: IntensityLevel;
-  /** 0..1 */
-  score: number;
+export interface Assessment extends OverallIntensity {
   /** Signals that counted, strongest contribution first */
   drivers: Signal[];
 }
@@ -50,4 +45,10 @@ export function assess(signals: Signal[]): Assessment {
   const score = 1 - drivers.reduce((p, s) => p * (1 - s.score * SEVERITY[s.key]), 1);
   const level: IntensityLevel = !drivers.length ? "none" : score >= 0.8 ? "high" : score >= 0.45 ? "medium" : "low";
   return { level, score: Math.round(score * 100) / 100, drivers };
+}
+
+/** The part of the assessment that goes to the UI (`AnalysisResult.overall`). */
+export function overall(signals: Signal[]): OverallIntensity {
+  const { level, score } = assess(signals);
+  return { level, score };
 }

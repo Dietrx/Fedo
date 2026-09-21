@@ -6,12 +6,14 @@
 import type { AnalysisInput, AnalysisResult, Analyzer } from "@contracts";
 import { scoreSignals } from "./engine";
 import { buildExplanation } from "./explain";
+import { overall } from "./assess";
 
 export function analyzeLocally(input: AnalysisInput, t0 = Date.now()): AnalysisResult {
   const signals = scoreSignals(input);
   return {
     itemId: input.item.id,
     signals,
+    overall: overall(signals),
     explanation: buildExplanation(signals, input.kind === "transcript"),
     partial: isPartial(input),
     source: "mock",
