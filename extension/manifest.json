@@ -9,6 +9,12 @@
   "content_scripts": [
     {
       "matches": ["https://x.com/*", "https://twitter.com/*", "https://www.tiktok.com/*"],
+      "js": ["main-world.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://x.com/*", "https://twitter.com/*", "https://www.tiktok.com/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
     }

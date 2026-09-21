@@ -1,0 +1,7 @@
+{
+  "capturedAt": "2026-09-21T12:40:00.000Z",
+  "endpoint": "https://cdn.syndication.twimg.com/tweet-result?id=<id>&token=<derived>",
+  "tokenFormula": "((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\\.)/g, '')",
+  "note": "Public, login-free endpoint used by X's own embeds. Captured live with Playwright (status 200). No cookies needed.",
+  "tweet": {"__typename":"Tweet","favorite_count":308433,"lang":"en","created_at":"2006-03-21T20:50:14.000Z","display_text_range":[0,24],"entities":{},"id_str":"20","text":"just setting up my twttr","user":{"id_str":"12","name":"jack","screen_name":"jack","is_blue_verified":true,"profile_image_shape":"Circle","verified":false,"profile_image_url_https":"https://pbs.twimg.com/profile_images/1661201415899951105/azNjKOSH_normal.jpg"},"edit_control":{"edit_tweet_ids":["20"],"editable_until_msecs":"1142976014000","edits_remaining":"5","is_edit_eligible":true},"conversation_count":18055,"news_action_type":"conversation","isEdited":false,"isStaleEdit":false}
+}
