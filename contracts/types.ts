@@ -50,6 +50,43 @@ export interface TranscriptChunk {
   source: "captions" | "stt";
 }
 
+/**
+ * A few seconds of a video's audio, captured in the page (video.captureStream()) and handed to the
+ * background for speech-to-text. Always 16 kHz mono WAV, base64 → small and every STT API accepts it.
+ */
+export interface AudioChunk {
+  itemId: string;
+  /** base64 of the WAV file */
+  audio: string;
+  mime: "audio/wav";
+  /** video time (seconds) where this chunk starts / ends */
+  t0: number;
+  t1: number;
+  /** total length of the video, if the player knows it */
+  durationSec?: number;
+  /** true for the last chunk (video ended or capture stopped) */
+  ended: boolean;
+}
+
+/** Speech-to-text result for one AudioChunk. */
+export interface TranscriptionResult {
+  /** false when no STT endpoint is configured → the glue stops capturing */
+  configured: boolean;
+  text: string;
+  /** sentences with their (approximate) start time in the video */
+  segments: { text: string; t: number }[];
+}
+
+/** How far the live analysis of a video has come. Shown by the UI as a progress strip + countdown. */
+export interface VideoProgress {
+  phase: "listening" | "transcribing" | "done" | "muted" | "unavailable";
+  /** seconds of the video that have been transcribed so far */
+  coveredSec: number;
+  durationSec?: number;
+  /** ms since epoch when the full analysis is expected (UI shows a countdown) */
+  etaAt?: number;
+}
+
 /** What the AI path gets asked to analyze. */
 export type AnalysisInput =
   | { kind: "post"; item: FeedItem }
@@ -126,10 +163,10 @@ export interface AnalysisResult {
   latencyMs: number;
 }
 
-/** What the UI renders for one item. */
+/** What the UI renders for one item. `progress` is only set for videos that are being listened to. */
 export type OverlayState =
-  | { status: "pending" }
-  | { status: "done"; result: AnalysisResult }
+  | { status: "pending"; progress?: VideoProgress }
+  | { status: "done"; result: AnalysisResult; progress?: VideoProgress }
   | { status: "error"; message: string };
 
 export interface Settings {

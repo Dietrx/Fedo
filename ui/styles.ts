@@ -29,6 +29,17 @@ export const OVERLAY_CSS = /* css */ `
   .fill.low { background: #ffd400; } .fill.mid { background: #f28a1e; } .fill.high { background: #f4384a; }
   .val { text-align: right; color: #8b98a5; font-variant-numeric: tabular-nums; }
   .evidence { grid-column: 1 / -1; color: #8b98a5; font-style: italic; font-size: 12px; margin-top: -2px; }
+  .progress { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; margin-top: 4px; padding: 5px 8px; border-radius: 8px;
+              background: rgba(20,23,26,.92); border: 1px solid rgba(255,255,255,.08); font-size: 11px; color: #8b98a5; font-variant-numeric: tabular-nums; }
+  .progress.muted { display: block; }
+  .ptrack { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .pfill { display: block; height: 100%; background: #1d9bf0; transition: width .4s; }
+  .peta { text-align: right; } .peta b { color: #00ba7c; font-weight: 600; }
+  .tlwrap { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08); }
+  .tlh { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #71767b; margin-bottom: 4px; }
+  .tl { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+  .tt { font-variant-numeric: tabular-nums; color: #8b98a5; min-width: 34px; font-size: 12px; }
+  .tev { color: #8b98a5; font-style: italic; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .research { margin: 8px 0 0; color: #8b98a5; font-size: 11px; }
   .note { margin: 8px 0 0; color: #71767b; font-size: 11px; }
 `;

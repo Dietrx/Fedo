@@ -7,15 +7,17 @@
  *
  * The glue code in extension/src wires them together. Nobody imports another path directly.
  */
-import type { AnalysisInput, AnalysisResult, FeedItem, OverlayState, Platform, TranscriptChunk } from "./types";
+import type { AnalysisInput, AnalysisResult, AudioChunk, FeedItem, OverlayState, Platform, TranscriptChunk, TranscriptionResult } from "./types";
 
 // ── Path 1: Scraper (runs in the content script, on x.com / tiktok.com) ─────────────
 
 export interface ScraperSink {
   /** Called once per newly seen post. `anchor` = the post's DOM element (the UI attaches its overlay there). */
   onItem(item: FeedItem, anchor: HTMLElement): void;
-  /** Called with new spoken text for a video item (optional feature). */
+  /** Called with new spoken text for a video item (platform captions). */
   onTranscript?(chunk: TranscriptChunk): void;
+  /** Called with a few seconds of captured video audio; the glue sends it to speech-to-text. Return false to stop capturing this item. */
+  onAudio?(chunk: AudioChunk): void;
   /** Called when a post leaves the DOM / is recycled by the virtual list. */
   onItemRemoved?(itemId: string): void;
 }
@@ -32,6 +34,15 @@ export interface AnalyzerConfig {
   mode: "mock" | "jev";
   jevApiUrl?: string;
   jevApiKey?: string;
+  /** Speech-to-text for videos: an OpenAI-style `/audio/transcriptions` URL or an OpenAI-compatible `/chat/completions` URL of an audio-capable model. */
+  sttApiUrl?: string;
+  sttApiKey?: string;
+  sttModel?: string;
+}
+
+export interface Transcriber {
+  /** Must never touch `chrome.*` or `document` — fetch only, so it runs in Node too. */
+  transcribe(chunk: AudioChunk): Promise<TranscriptionResult>;
 }
 
 export interface Analyzer {

@@ -16,7 +16,7 @@ import {
   type StatsWindow,
 } from "@contracts";
 import type { Request, Response } from "@contracts/messages";
-import { createAnalyzer } from "../../ai";
+import { createAnalyzer, createTranscriber } from "../../ai";
 
 // ── analyzers ────────────────────────────────────────────────────────────────────────
 // "local" never talks to the network. "cloud" is Jev when the build has a key, else local too.
@@ -24,6 +24,7 @@ const analyzers = {
   local: createAnalyzer({ mode: "mock" }),
   cloud: createAnalyzer(__FEDO_CONFIG__),
 };
+const transcriber = createTranscriber(__FEDO_CONFIG__);
 const cache = new Map<string, AnalysisResult>();
 
 async function getSettings(): Promise<Settings> {
@@ -193,6 +194,8 @@ async function handle(req: Request): Promise<unknown> {
   switch (req.type) {
     case "fedo/analyze":
       return analyze(req.input);
+    case "fedo/transcribe":
+      return transcriber.transcribe(req.chunk);
     case "fedo/getSettings":
       return getSettings();
     case "fedo/setSettings": {
@@ -217,4 +220,4 @@ chrome.runtime.onMessage.addListener((req: Request, _sender, sendResponse: (r: R
 });
 
 void sessionStart().then(() => log.all().then(updateBadge));
-console.log("[fedo] background ready, cloud analyzer:", __FEDO_CONFIG__.mode);
+console.log("[fedo] background ready, cloud analyzer:", __FEDO_CONFIG__.mode, "· speech-to-text:", __FEDO_CONFIG__.sttApiUrl ? "on" : "off");

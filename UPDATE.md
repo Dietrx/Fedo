@@ -10,6 +10,44 @@
 
 ---
 
+## 2026-09-21 · Branch `video-stt` · Scraper + AI + Glue + UI · Videos werden wirklich gehört (Sprache → Text → Analyse, mit Fortschritt und Countdown)
+
+**Was hat sich geändert:**
+- `scraper/video.ts` (neu, in `createScraper` für X und TikTok verdrahtet): Das laufende, sichtbare Video wird
+  über `video.captureStream()` abgehört — kein Tab-Capture, keine Extra-Berechtigung, kein Mikrofon. Alle 8 s
+  geht ein Stück als 16-kHz-Mono-WAV an `sink.onAudio()`. Stumme Stücke werden lokal verworfen (nichts gesendet);
+  max. 180 s pro Video.
+- `ai/stt.ts` (neu): `createTranscriber(config)` — zwei Endpunkt-Arten, per URL erkannt:
+  Whisper-artig (`…/audio/transcriptions`, exakte Zeitstempel) oder OpenAI-kompatibler Chat mit `input_audio`
+  (z. B. OpenRouter + `google/gemini-2.5-flash`). Liefert Text + Sätze mit Startzeit.
+- `extension/src/background.ts`: Message `fedo/transcribe`. `scripts/build.mjs`: `STT_API_URL`, `STT_API_KEY`,
+  `STT_MODEL` aus `.env` (Vorlage in `.env.example`); `host_permissions` enthält die STT-Origin.
+- `extension/src/content.ts`: Audio → STT → `TranscriptChunk`s (`source: "stt"`) → die bestehende
+  Transcript-Pipeline (`withLiveVideo`, Timeline, LIVE-Badge). Führt `VideoProgress` (gehörte Sekunden,
+  Gesamtlänge, ETA) und schließt das Transkript, wenn das Video endet.
+- `contracts/` (nur optional): `AudioChunk`, `TranscriptionResult`, `VideoProgress`, `Transcriber`,
+  `ScraperSink.onAudio?`, `AnalyzerConfig.sttApiUrl/sttApiKey/sttModel`, `OverlayState.progress?`,
+  Message `fedo/transcribe`.
+- `ui/index.ts`: Fortschrittsleiste unter der Chip-Leiste („🎧 0:16 of 0:45 analyzed · full analysis in 34 s“,
+  tickt sekündlich), „Full video analyzed“ am Ende, „Unmute the video to analyze the speech“ bei stummem Player,
+  Zeitleiste „In the video“ im Why-Panel (rendert `result.timeline` aus PR #4/#5).
+- Playground: „Simulate live video“ zeigt jetzt Fortschritt, Countdown und Zeitleiste.
+
+**Was musst du tun:**
+- `git pull --rebase origin main`, in `.env` eintragen (AI-Dev hat den OpenRouter-Key):
+  `STT_API_URL=https://openrouter.ai/api/v1/chat/completions`, `STT_API_KEY=sk-or-…`,
+  `STT_MODEL=google/gemini-2.5-flash` → `npm run build` → ↻ in chrome://extensions → Video auf X **mit Ton** abspielen.
+- **AI-Dev:** bitte einen echten Lauf gegen OpenRouter machen — die Keys auf dem Rechner, auf dem das gebaut wurde,
+  waren tot (401). Der Client ist gegen einen Nachbau beider API-Formate geprüft (Multipart + Auth, `input_audio` wav,
+  Zeitstempel), nicht gegen den echten Anbieter.
+
+**Wichtig zu wissen:** Verifiziert in Chromium: eine 11-s-Sprachaufnahme in einem `<video>` ergibt zwei WAV-Stücke
+(0,0–7,9 s und 7,9–11,4 s, 16 kHz mono, −15,6 dB, `ended` korrekt). Ohne `STT_API_URL` passiert nichts Neues —
+Videos werden dann wie bisher nur über Text/Caption bewertet. Stummgeschaltete Player liefern in Chrome kein Audio
+→ die Leiste sagt das ehrlich, statt „sauber“ zu zeigen.
+
+---
+
 ## 2026-09-21 · `ai/real-feed-tuning` · AI · An 168 echten Posts getestet und nachgeschärft
 
 **Was hat sich geändert:**
